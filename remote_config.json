@@ -1,0 +1,16 @@
+{
+  "version_required": "8.3",
+  "online_mode_enabled": true,
+  "maintenance_mode": false,
+  "maintenance_message": "Servidor en mantenimiento. Solo podrás ver listas y estadísticas.",
+  "features": {
+    "listeros": true,
+    "tiradas": true,
+    "subir_listas": true,
+    "limitados": true,
+    "estadisticas": true,
+    "cuadre": true,
+    "ver_listas": true
+  },
+  "announcement": "Bienvenido a la nueva versión. Pronto más novedades."
+}
