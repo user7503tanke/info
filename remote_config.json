@@ -1,5 +1,5 @@
 {
-  "version_required": "8.4",
+  "version_required": "9",
   "online_mode_enabled": true,
   "maintenance_mode": false,
   "maintenance_message": "Servidor en mantenimiento. Solo podrás ver listas y estadísticas.",
@@ -12,5 +12,5 @@
     "cuadre": true,
     "ver_listas": true
   },
-  "announcement": "###"
+  "announcement": "We're going to go up again!"
 }
