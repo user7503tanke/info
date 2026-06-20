@@ -22,7 +22,7 @@ MENSAJE = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no esper
 INTENTOS_POR_NUMERO = 2
 INTERVALO = 1
 MAX_INTENTOS_LIMITE = 2
-MAX_PROXIES = 100
+MAX_PROXIES = 1000
 TIMEOUT_PROXY = 3
 TIMEOUT_SMS = 10
 
