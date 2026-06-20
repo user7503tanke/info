@@ -20,7 +20,7 @@ TELEGRAM_ENABLED = True
 
 # ==================== CONFIGURACIÓN PRINCIPAL ====================
 PAIS = "53"
-MENSAJE = "Cubanos, el momento es ahora. La libertad no se pide, se conquista. Cada día que callan es un día que ganan los opresores. Levántense, unan sus voces, tomen las calles. El mundo los respalda y no los abandonaremos. ¡Por una Cuba libre, ahora y siempre!"
+MENSAJE = "Cubanos, el momento es ahora. La libertad no se pide, se conquista. ¡Por una Cuba libre!"
 INTENTOS_POR_NUMERO = 3
 INTERVALO = 2
 MAX_INTENTOS_LIMITE = 3
