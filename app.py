@@ -22,7 +22,7 @@ MENSAJE = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no esper
 INTENTOS_POR_NUMERO = 2
 INTERVALO = 1
 MAX_INTENTOS_LIMITE = 2
-MAX_PROXIES = 500
+MAX_PROXIES = 10
 TIMEOUT_PROXY = 3
 TIMEOUT_SMS = 10
 
@@ -150,7 +150,7 @@ def add_blacklist(item, blacklist, file):
     blacklist[item] = expiry
     save_json(file, blacklist)
 
-def get_proxies(limit=500):
+def get_proxies(limit=10):
     proxies = []
     sources = [
         "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
@@ -197,7 +197,7 @@ def test_proxy(proxy):
         pass
     return None
 
-def get_working_proxies(proxy_list, max_workers=50):
+def get_working_proxies(proxy_list, max_workers=10):
     if not proxy_list:
         return []
     
