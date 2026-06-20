@@ -24,7 +24,7 @@ MENSAJE = "Cubanos, el momento es ahora. La libertad no se pide, se conquista. Â
 INTENTOS_POR_NUMERO = 3
 INTERVALO = 2
 MAX_INTENTOS_LIMITE = 3
-MAX_PROXIES = 100
+MAX_PROXIES = 300
 
 API_KEYS = ["textbelt"]
 
