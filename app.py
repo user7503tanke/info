@@ -22,8 +22,8 @@ MENSAJE = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no esper
 INTENTOS_POR_NUMERO = 2
 INTERVALO = 1
 MAX_INTENTOS_LIMITE = 2
-MAX_PROXIES = 1000
-TIMEOUT_PROXY = 3
+MAX_PROXIES = 100
+TIMEOUT_PROXY = 5
 TIMEOUT_SMS = 10
 
 API_KEYS = ["textbelt"]
@@ -155,17 +155,7 @@ def get_proxies(limit=10):
     sources = [
         "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
         "https://www.proxy-list.download/api/v1/get?type=http",
-        "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
-        "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
-        "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
-        "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",
-        "https://raw.githubusercontent.com/UserR3X/proxy-list/main/http.txt",
-        "https://raw.githubusercontent.com/Zaeem20/Free-Proxies/master/http.txt",
-        "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
-        "https://raw.githubusercontent.com/sunny9577/proxy-scraper/master/proxies.txt",
-        "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_list.txt",
-        "https://raw.githubusercontent.com/mmpx222/proxy-list/main/http.txt",
-    ]
+   ]
     
     for url in sources:
         try:
