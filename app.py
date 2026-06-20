@@ -23,10 +23,14 @@ PAIS = "53"
 MENSAJE_DEFAULT = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no espera."
 INTENTOS_POR_NUMERO = 10
 INTERVALO = 1
-MAX_PROXIES = 100
-TIMEOUT_PROXY = 10
+MAX_PROXIES = 200
+TIMEOUT_PROXY = 5
 TIMEOUT_SMS = 15
-BAN_DURATION_HOURS = 24  # Duración de blacklist en horas
+BAN_DURATION_HOURS = 24
+
+MAX_NUMEROS_POR_ENVIO = 5000
+MAX_RANGO_NUMEROS = 50000
+LOTE_SIZE = 500
 
 # ============ BASE DE DATOS ============
 DB_FILE = "sms_bot.db"
@@ -35,7 +39,6 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Tabla de números baneados (con expiración)
     c.execute('''CREATE TABLE IF NOT EXISTS numbers_ban (
         numero TEXT,
         pais TEXT,
@@ -45,7 +48,6 @@ def init_db():
         PRIMARY KEY (numero, pais)
     )''')
     
-    # Tabla de proxies baneados (con expiración)
     c.execute('''CREATE TABLE IF NOT EXISTS proxies_ban (
         proxy TEXT PRIMARY KEY,
         fecha_ban TIMESTAMP,
@@ -54,17 +56,17 @@ def init_db():
         fallos_consecutivos INTEGER DEFAULT 0
     )''')
     
-    # Tabla de proxies activos (cache)
     c.execute('''CREATE TABLE IF NOT EXISTS proxies_cache (
         proxy TEXT PRIMARY KEY,
         ultimo_uso TIMESTAMP,
         veces_usado INTEGER DEFAULT 0,
         fallos INTEGER DEFAULT 0,
         activo INTEGER DEFAULT 1,
-        ultimo_exito TIMESTAMP
+        ultimo_exito TIMESTAMP,
+        ultima_prueba TIMESTAMP,
+        funcional INTEGER DEFAULT 0
     )''')
     
-    # Tabla de estadísticas
     c.execute('''CREATE TABLE IF NOT EXISTS stats (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         fecha TIMESTAMP,
@@ -74,18 +76,27 @@ def init_db():
         blacklist INTEGER DEFAULT 0
     )''')
     
-    # Tabla de configuración
     c.execute('''CREATE TABLE IF NOT EXISTS config (
         clave TEXT PRIMARY KEY,
         valor TEXT
     )''')
     
-    # Tabla de logs
     c.execute('''CREATE TABLE IF NOT EXISTS logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         fecha TIMESTAMP,
         nivel TEXT,
         mensaje TEXT
+    )''')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS tareas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tarea_id TEXT UNIQUE,
+        fecha_inicio TIMESTAMP,
+        total_numeros INTEGER,
+        enviados INTEGER DEFAULT 0,
+        fallidos INTEGER DEFAULT 0,
+        estado TEXT DEFAULT 'activa',
+        datos TEXT
     )''')
     
     conn.commit()
@@ -152,14 +163,14 @@ def setup_logging():
 logger = setup_logging()
 
 # ============ FUNCIONES DE PROXY ============
-def get_proxies_from_sources(limit=100):
-    """Obtiene proxies de fuentes externas"""
+def get_proxies_from_sources(limit=200):
     proxies = []
     sources = [
         "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
         "https://www.proxy-list.download/api/v1/get?type=http",
         "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
         "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
+        "https://raw.githubusercontent.com/roosterkid/openproxylist/main/http.txt",
     ]
     
     for url in sources:
@@ -179,20 +190,38 @@ def get_proxies_from_sources(limit=100):
     
     return list(set(proxies))[:limit]
 
-def get_cached_proxies(limit=100):
-    """Obtiene proxies de la caché que no estén baneados"""
+def get_cached_proxies(limit=50, only_functional=False):
+    """Obtiene proxies de la caché"""
     ahora = datetime.now().isoformat()
-    result = db_execute(
-        """SELECT proxy FROM proxies_cache 
-           WHERE activo = 1 
-           AND proxy NOT IN (
-               SELECT proxy FROM proxies_ban 
-               WHERE expira > ?
-           )
-           ORDER BY veces_usado ASC, fallos ASC 
-           LIMIT ?""",
-        (ahora, limit)
-    )
+    
+    if only_functional:
+        # Solo proxies que han funcionado antes
+        result = db_execute(
+            """SELECT proxy FROM proxies_cache 
+               WHERE activo = 1 
+               AND funcional = 1
+               AND proxy NOT IN (
+                   SELECT proxy FROM proxies_ban 
+                   WHERE expira > ?
+               )
+               ORDER BY veces_usado ASC, fallos ASC 
+               LIMIT ?""",
+            (ahora, limit)
+        )
+    else:
+        # Todos los proxies no baneados
+        result = db_execute(
+            """SELECT proxy FROM proxies_cache 
+               WHERE activo = 1 
+               AND proxy NOT IN (
+                   SELECT proxy FROM proxies_ban 
+                   WHERE expira > ?
+               )
+               ORDER BY funcional DESC, veces_usado ASC, fallos ASC 
+               LIMIT ?""",
+            (ahora, limit)
+        )
+    
     return [r[0] for r in result]
 
 def refresh_proxy_cache():
@@ -211,13 +240,13 @@ def refresh_proxy_cache():
     to_insert = []
     for proxy in new_proxies:
         if proxy not in existing_set:
-            to_insert.append((proxy, datetime.now().isoformat(), 0, 0, 1, None))
+            to_insert.append((proxy, datetime.now().isoformat(), 0, 0, 1, None, None, 0))
     
     if to_insert:
         db_execute_many(
             """INSERT OR IGNORE INTO proxies_cache 
-               (proxy, ultimo_uso, veces_usado, fallos, activo, ultimo_exito) 
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (proxy, ultimo_uso, veces_usado, fallos, activo, ultimo_exito, ultima_prueba, funcional) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             to_insert
         )
     
@@ -228,7 +257,7 @@ def refresh_proxy_cache():
                WHERE proxy IN (
                    SELECT proxy FROM proxies_cache 
                    WHERE activo = 1 
-                   ORDER BY ultimo_uso ASC 
+                   ORDER BY ultimo_uso ASC, funcional DESC
                    LIMIT ?
                )""",
             (total - MAX_PROXIES,)
@@ -238,57 +267,110 @@ def refresh_proxy_cache():
     return len(to_insert)
 
 def test_proxy(proxy):
-    """Prueba si un proxy funciona"""
+    """Prueba si un proxy funciona - usa un endpoint más confiable"""
     try:
-        r = requests.get('https://www.google.com', proxies={"http": proxy, "https": proxy}, timeout=3)
-        if r.status_code == 200:
-            return True
+        # Usar multiple endpoints para probar
+        test_urls = [
+            'https://httpbin.org/ip',
+            'https://api.ipify.org',
+            'https://ifconfig.me/ip'
+        ]
+        
+        for url in test_urls:
+            try:
+                r = requests.get(url, proxies={"http": proxy, "https": proxy}, timeout=TIMEOUT_PROXY)
+                if r.status_code == 200:
+                    # Actualizar estado funcional en DB
+                    db_execute(
+                        "UPDATE proxies_cache SET funcional = 1, ultima_prueba = ? WHERE proxy = ?",
+                        (datetime.now().isoformat(), proxy)
+                    )
+                    return True
+            except:
+                continue
+        
+        # Si fallan todos los endpoints, marcar como no funcional
+        db_execute(
+            "UPDATE proxies_cache SET funcional = 0, ultima_prueba = ? WHERE proxy = ?",
+            (datetime.now().isoformat(), proxy)
+        )
+        return False
     except:
-        pass
-    return False
+        return False
 
-def get_working_proxies(limit=20):
-    """Obtiene proxies funcionales"""
-    cached = get_cached_proxies(limit * 2)
+def get_working_proxies(limit=20, force_refresh=False):
+    """Obtiene proxies funcionales - prioriza los que ya funcionaron"""
     
-    if cached:
+    # Primero intentar con proxies funcionales conocidos
+    functional = get_cached_proxies(limit, only_functional=True)
+    
+    if functional and not force_refresh:
+        # Verificar que sigan funcionando (solo algunos)
         working = []
-        for proxy in cached[:limit]:
+        for proxy in functional[:limit]:
+            # Si el proxy ha sido usado recientemente, confiar en él
+            result = db_execute(
+                "SELECT ultimo_exito FROM proxies_cache WHERE proxy = ?",
+                (proxy,)
+            )
+            if result and result[0][0]:
+                try:
+                    ultimo_exito = datetime.fromisoformat(result[0][0])
+                    if (datetime.now() - ultimo_exito) < timedelta(minutes=5):
+                        # Si tuvo éxito en los últimos 5 minutos, usarlo sin probar
+                        working.append(proxy)
+                        continue
+                except:
+                    pass
+            
+            # Probar proxy
             if test_proxy(proxy):
                 working.append(proxy)
-                db_execute(
-                    "UPDATE proxies_cache SET ultimo_uso = ?, veces_usado = veces_usado + 1 WHERE proxy = ?",
-                    (datetime.now().isoformat(), proxy)
-                )
-            else:
-                db_execute(
-                    "UPDATE proxies_cache SET fallos = fallos + 1 WHERE proxy = ?",
-                    (proxy,)
-                )
-                if db_execute("SELECT fallos FROM proxies_cache WHERE proxy = ?", (proxy,))[0][0] >= 5:
-                    db_execute("UPDATE proxies_cache SET activo = 0 WHERE proxy = ?", (proxy,))
         
         if working:
+            logger.debug(f"✅ Usando {len(working)} proxies funcionales conocidos")
             return working
     
-    refresh_proxy_cache()
-    cached = get_cached_proxies(limit)
+    # Si no hay funcionales o se fuerza refresh, probar todos
+    logger.info("🔄 Buscando proxies funcionales...")
+    cached = get_cached_proxies(limit * 3, only_functional=False)
+    
+    if not cached:
+        refresh_proxy_cache()
+        cached = get_cached_proxies(limit * 3, only_functional=False)
     
     working = []
+    tested = 0
+    
     for proxy in cached:
+        if tested >= limit * 2:
+            break
+        
+        # No probar proxies ya baneados
+        if is_proxy_banned(proxy):
+            continue
+        
         if test_proxy(proxy):
             working.append(proxy)
+            # Marcar como funcional
             db_execute(
-                "UPDATE proxies_cache SET ultimo_uso = ?, veces_usado = veces_usado + 1 WHERE proxy = ?",
+                "UPDATE proxies_cache SET funcional = 1, ultimo_uso = ? WHERE proxy = ?",
                 (datetime.now().isoformat(), proxy)
             )
+        
+        tested += 1
+        
         if len(working) >= limit:
             break
+    
+    if working:
+        logger.info(f"✅ Encontrados {len(working)} proxies funcionales")
+    else:
+        logger.warning("⚠️ No se encontraron proxies funcionales")
     
     return working
 
 def ban_proxy(proxy, razon="fallo", hours=BAN_DURATION_HOURS):
-    """Bannea un proxy por N horas"""
     ahora = datetime.now()
     expira = ahora + timedelta(hours=hours)
     
@@ -297,12 +379,11 @@ def ban_proxy(proxy, razon="fallo", hours=BAN_DURATION_HOURS):
            VALUES (?, ?, ?, ?)""",
         (proxy, ahora.isoformat(), expira.isoformat(), razon)
     )
-    db_execute("UPDATE proxies_cache SET activo = 0 WHERE proxy = ?", (proxy,))
+    db_execute("UPDATE proxies_cache SET activo = 0, funcional = 0 WHERE proxy = ?", (proxy,))
     
-    logger.info(f"🚫 Proxy baneado 24h: {proxy} - {razon} (expira: {expira.strftime('%H:%M:%S')})")
+    logger.info(f"🚫 Proxy baneado 24h: {proxy} - {razon}")
 
 def ban_number(numero, pais, razon="exitoso", hours=BAN_DURATION_HOURS):
-    """Bannea un número por N horas"""
     ahora = datetime.now()
     expira = ahora + timedelta(hours=hours)
     
@@ -312,10 +393,9 @@ def ban_number(numero, pais, razon="exitoso", hours=BAN_DURATION_HOURS):
         (numero, pais, ahora.isoformat(), expira.isoformat(), razon)
     )
     
-    logger.info(f"🚫 Número baneado 24h: +{pais}{numero} - {razon} (expira: {expira.strftime('%H:%M:%S')})")
+    logger.info(f"🚫 Número baneado 24h: +{pais}{numero} - {razon}")
 
 def is_proxy_banned(proxy):
-    """Verifica si un proxy está baneado (no expirado)"""
     ahora = datetime.now().isoformat()
     result = db_execute(
         "SELECT proxy FROM proxies_ban WHERE proxy = ? AND expira > ?",
@@ -324,7 +404,6 @@ def is_proxy_banned(proxy):
     return len(result) > 0
 
 def is_number_banned(numero, pais):
-    """Verifica si un número está baneado (no expirado)"""
     ahora = datetime.now().isoformat()
     result = db_execute(
         "SELECT numero FROM numbers_ban WHERE numero = ? AND pais = ? AND expira > ?",
@@ -333,7 +412,6 @@ def is_number_banned(numero, pais):
     return len(result) > 0
 
 def clean_expired_bans():
-    """Limpia bans expirados (opcional, ya que las queries verifican expira)"""
     ahora = datetime.now().isoformat()
     db_execute("DELETE FROM proxies_ban WHERE expira <= ?", (ahora,))
     db_execute("DELETE FROM numbers_ban WHERE expira <= ?", (ahora,))
@@ -350,7 +428,6 @@ def random_user_agent():
     return random.choice(uas)
 
 def send_sms(phone, message, api_key, proxy):
-    """Envía un SMS usando Textbelt"""
     url = "https://textbelt.com/text"
     data = {"phone": phone, "message": message, "key": api_key}
     headers = {"User-Agent": random_user_agent()}
@@ -364,9 +441,12 @@ def send_sms(phone, message, api_key, proxy):
                 return True, result.get('textId', 'OK'), None
             else:
                 error = result.get('error', 'Error desconocido')
-                # Detectar error de límite (solo 1 por día)
-                if error and any(p in error.lower() for p in ["only one", "limit", "quota", "1 per day"]):
+                # Errores que indican límite diario
+                if error and any(p in error.lower() for p in ["only one", "limit", "quota", "1 per day", "per day"]):
                     return False, None, "LIMIT_DAILY"
+                # Errores de texto de prueba
+                if error and "test texts" in error.lower():
+                    return False, None, "TEST_TEXT_DISABLED"
                 return False, None, error
         else:
             return False, None, f"HTTP {r.status_code}"
@@ -378,12 +458,10 @@ def send_sms(phone, message, api_key, proxy):
         return False, None, str(e)[:50]
 
 def process_number(numero, config, working_proxies):
-    """Procesa un número individual"""
     pais = config.get('pais', PAIS)
     mensaje = config.get('mensaje', MENSAJE_DEFAULT)
     max_intentos = config.get('intentos', INTENTOS_POR_NUMERO)
     
-    # Verificar si el número está baneado
     if is_number_banned(numero, pais):
         logger.debug(f"⏭️ Número baneado: +{pais}{numero}")
         return False, "banned"
@@ -392,16 +470,19 @@ def process_number(numero, config, working_proxies):
     
     intentos = 0
     while intentos < max_intentos:
-        # Obtener proxy
+        # Si no hay proxies, intentar recargar
         if not working_proxies:
             logger.warning("⚠️ Sin proxies, recargando...")
-            new_proxies = get_working_proxies(10)
+            new_proxies = get_working_proxies(15, force_refresh=True)
             if new_proxies:
                 working_proxies.extend(new_proxies)
+                logger.info(f"✅ Recargados {len(new_proxies)} proxies")
             else:
-                time.sleep(3)
+                logger.warning("⚠️ No se pudieron obtener proxies, esperando 10s...")
+                time.sleep(10)
                 continue
         
+        # Seleccionar proxy
         proxy = random.choice(working_proxies)
         
         # Verificar si el proxy está baneado
@@ -417,19 +498,14 @@ def process_number(numero, config, working_proxies):
         success, text_id, error = send_sms(phone, mensaje, api_key, proxy)
         
         if success:
-            # ✅ ÉXITO: BANEAR PROXY Y NÚMERO POR 24 HORAS
             logger.info(f"✅ ÉXITO: +{pais}{numero} - Baneando proxy y número por 24h")
             
-            # Banear proxy (24h)
             ban_proxy(proxy, "exitoso_enviado", BAN_DURATION_HOURS)
-            
-            # Banear número (24h)
             ban_number(numero, pais, "exitoso_recibido", BAN_DURATION_HOURS)
             
-            # Actualizar estadísticas del proxy
             db_execute(
                 """UPDATE proxies_cache 
-                   SET ultimo_uso = ?, veces_usado = veces_usado + 1, ultimo_exito = ? 
+                   SET ultimo_uso = ?, veces_usado = veces_usado + 1, ultimo_exito = ?, funcional = 1
                    WHERE proxy = ?""",
                 (datetime.now().isoformat(), datetime.now().isoformat(), proxy)
             )
@@ -441,98 +517,141 @@ def process_number(numero, config, working_proxies):
         
         # Manejar errores específicos
         if error == "LIMIT_DAILY":
-            # 🚫 LÍMITE DIARIO: Solo banear proxy, NO el número
-            logger.warning(f"⚠️ Límite diario alcanzado con proxy {proxy} - Baneando solo proxy")
-            ban_proxy(proxy, "limite_diario_alcanzado", BAN_DURATION_HOURS)
+            logger.warning(f"⚠️ Límite diario con proxy {proxy} - Baneando solo proxy")
+            ban_proxy(proxy, "limite_diario", BAN_DURATION_HOURS)
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
-            # No baneamos el número, podemos intentar con otro proxy
+            continue
+        
+        if error == "TEST_TEXT_DISABLED":
+            logger.warning(f"⚠️ Test texts disabled con proxy {proxy} - Baneando solo proxy")
+            ban_proxy(proxy, "test_texts_disabled", BAN_DURATION_HOURS)
+            if proxy in working_proxies:
+                working_proxies.remove(proxy)
             continue
         
         if error in ["TIMEOUT", "CONNECTION_ERROR"]:
-            # Error de conexión: banear proxy
+            logger.warning(f"⚠️ Error de conexión con {proxy} - Baneando proxy")
             ban_proxy(proxy, error, BAN_DURATION_HOURS)
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
             continue
         
         if error and "invalid" in error.lower():
-            # Número inválido: banear número permanentemente
-            ban_number(numero, pais, "numero_invalido", 720)  # 30 días
+            logger.warning(f"⚠️ Número inválido: +{pais}{numero}")
+            ban_number(numero, pais, "numero_invalido", 720)
             return False, "invalid"
         
         if error and "blacklist" in error.lower():
-            # Número en blacklist de Textbelt
-            ban_number(numero, pais, "blacklist_textbelt", 720)  # 30 días
+            logger.warning(f"⚠️ Número en blacklist: +{pais}{numero}")
+            ban_number(numero, pais, "blacklist_textbelt", 720)
             return False, "banned"
         
         # Otros errores: banear proxy
+        logger.warning(f"⚠️ Error '{error}' con proxy {proxy} - Baneando proxy")
         ban_proxy(proxy, f"error_{error[:30]}", BAN_DURATION_HOURS)
         if proxy in working_proxies:
             working_proxies.remove(proxy)
     
     return False, "max_intentos"
 
+def procesar_lote(numeros_lote, config, stats, lote_num, total_lotes):
+    """Procesa un lote de números con mejor manejo de proxies"""
+    working_proxies = get_working_proxies(20, force_refresh=True)
+    
+    if not working_proxies:
+        logger.error(f"❌ Lote {lote_num}: No hay proxies funcionales")
+        # Intentar obtener proxies sin probar (modo rápido)
+        working_proxies = get_cached_proxies(20, only_functional=False)
+        if not working_proxies:
+            return stats
+    
+    logger.info(f"📦 Procesando lote {lote_num}/{total_lotes} ({len(numeros_lote)} números) con {len(working_proxies)} proxies")
+    
+    for i, numero in enumerate(numeros_lote, 1):
+        success, result = process_number(numero, config, working_proxies)
+        
+        if success:
+            stats['enviados'] += 1
+        elif result == "banned":
+            stats['banned'] += 1
+        elif result == "invalid":
+            stats['invalid'] += 1
+        else:
+            stats['fallidos'] += 1
+        
+        # Recargar proxies si es necesario
+        if len(working_proxies) < 3:
+            logger.info("🔄 Recargando proxies...")
+            new_proxies = get_working_proxies(15, force_refresh=True)
+            if new_proxies:
+                working_proxies.extend(new_proxies)
+                logger.info(f"✅ {len(new_proxies)} proxies añadidos")
+            else:
+                # Si no hay proxies funcionales, usar caché sin probar
+                new_proxies = get_cached_proxies(10, only_functional=False)
+                if new_proxies:
+                    working_proxies.extend(new_proxies)
+                    logger.info(f"⚠️ Usando {len(new_proxies)} proxies sin probar (modo rápido)")
+        
+        # Esperar entre envíos
+        time.sleep(config.get('intervalo', INTERVALO) * 0.3 + random.uniform(0, 0.3))
+    
+    return stats
+
 def ejecutar_envio(numeros, config):
-    """Ejecuta el envío masivo"""
+    """Ejecuta el envío masivo por lotes"""
     try:
-        # Limpiar bans expirados
         clean_expired_bans()
         
         total = len(numeros)
         logger.info(f"🚀 INICIANDO ENVÍO: {total} números")
         
-        # Obtener proxies funcionales
-        working_proxies = get_working_proxies(20)
-        if not working_proxies:
-            logger.error("❌ No hay proxies funcionales disponibles")
-            send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies funcionales disponibles")
-            return {"total": total, "enviados": 0, "fallidos": total}
+        # Dividir en lotes
+        lotes = []
+        for i in range(0, total, LOTE_SIZE):
+            lotes.append(numeros[i:i+LOTE_SIZE])
         
-        logger.info(f"✅ {len(working_proxies)} proxies funcionales")
+        total_lotes = len(lotes)
+        logger.info(f"📦 Dividido en {total_lotes} lotes de {LOTE_SIZE} números")
+        
+        send_telegram_message(
+            f"🚀 <b>INICIANDO ENVÍO</b>\n"
+            f"📱 {total} números\n"
+            f"📦 {total_lotes} lotes\n"
+            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
+        )
         
         stats = {"total": total, "enviados": 0, "fallidos": 0, "banned": 0, "invalid": 0}
         
-        for i, numero in enumerate(numeros, 1):
-            logger.info(f"▶ [{i}/{total}] Procesando +{config['pais']}{numero}")
+        for idx, lote in enumerate(lotes, 1):
+            logger.info(f"📦 Iniciando lote {idx}/{total_lotes}")
             
-            success, result = process_number(numero, config, working_proxies)
+            # Limpiar bans expirados antes de cada lote
+            clean_expired_bans()
             
-            if success:
-                stats['enviados'] += 1
-                logger.info(f"✅ Enviado: +{config['pais']}{numero} (ID: {result}) - Proxy y número baneados 24h")
-            elif result == "banned":
-                stats['banned'] += 1
-                logger.info(f"⏭️ Baneado: +{config['pais']}{numero}")
-            elif result == "invalid":
-                stats['invalid'] += 1
-                logger.info(f"⚠️ Inválido: +{config['pais']}{numero}")
-            else:
-                stats['fallidos'] += 1
-                logger.info(f"❌ Fallido: +{config['pais']}{numero}")
+            stats = procesar_lote(lote, config, stats, idx, total_lotes)
             
-            # Mostrar progreso cada 5 números
-            if i % 5 == 0:
-                logger.info(f"📊 Progreso: {i}/{total} | ✅ {stats['enviados']} | ❌ {stats['fallidos']} | ⏭️ {stats['banned']}")
-                send_telegram_message(
-                    f"📊 <b>PROGRESO</b>\n"
-                    f"📱 {i}/{total}\n"
-                    f"✅ {stats['enviados']} enviados (baneados 24h)\n"
-                    f"❌ {stats['fallidos']} fallidos\n"
-                    f"⏭️ {stats['banned']} baneados"
-                )
+            # Reportar progreso
+            enviados_total = stats['enviados']
+            fallidos_total = stats['fallidos']
+            banned_total = stats['banned']
+            procesados = enviados_total + fallidos_total + banned_total
             
-            # Recargar proxies si es necesario
-            if len(working_proxies) < 5:
-                logger.info("🔄 Recargando proxies...")
-                new_proxies = get_working_proxies(10)
-                if new_proxies:
-                    working_proxies.extend(new_proxies)
-                    logger.info(f"✅ {len(new_proxies)} proxies añadidos")
+            logger.info(f"📊 Lote {idx}/{total_lotes}: ✅ {enviados_total} | ❌ {fallidos_total} | ⏭️ {banned_total}")
             
-            # Esperar entre envíos
-            if i < total:
-                time.sleep(config.get('intervalo', INTERVALO) * 0.5 + random.uniform(0, 0.5))
+            send_telegram_message(
+                f"📊 <b>PROGRESO</b>\n"
+                f"📦 Lote {idx}/{total_lotes}\n"
+                f"📱 {procesados}/{total}\n"
+                f"✅ {enviados_total} enviados (baneados 24h)\n"
+                f"❌ {fallidos_total} fallidos\n"
+                f"⏭️ {banned_total} baneados"
+            )
+            
+            # Esperar entre lotes
+            if idx < total_lotes:
+                time.sleep(3)
         
         # Guardar estadísticas
         db_execute(
@@ -547,7 +666,7 @@ def ejecutar_envio(numeros, config):
             f"❌ Fallidos: {stats['fallidos']}\n"
             f"⏭️ Baneados: {stats['banned']}\n"
             f"⚠️ Inválidos: {stats['invalid']}\n"
-            f"🔌 Proxies disponibles: {len(working_proxies)}\n"
+            f"📦 Total lotes: {total_lotes}\n"
             f"⏰ {datetime.now().strftime('%H:%M:%S')}"
         )
         
@@ -569,6 +688,13 @@ def send_telegram_message(message):
         requests.post(url, data=data, timeout=5)
     except Exception as e:
         logger.error(f"Error enviando mensaje a Telegram: {e}")
+
+def generar_numeros_rango(inicio, fin):
+    """Genera números en un rango de manera eficiente"""
+    numeros = []
+    for i in range(inicio, fin + 1):
+        numeros.append(str(i).zfill(8))
+    return numeros
 
 def process_telegram_message(message):
     if not message:
@@ -594,16 +720,17 @@ def process_telegram_message(message):
         return
     
     if message.startswith('/estado'):
-        # Contar bans activos (no expirados)
         ahora = datetime.now().isoformat()
         proxies_banned = db_execute("SELECT COUNT(*) FROM proxies_ban WHERE expira > ?", (ahora,))[0][0]
         numbers_banned = db_execute("SELECT COUNT(*) FROM numbers_ban WHERE expira > ?", (ahora,))[0][0]
         proxies_activos = db_execute("SELECT COUNT(*) FROM proxies_cache WHERE activo = 1")[0][0]
+        proxies_funcionales = db_execute("SELECT COUNT(*) FROM proxies_cache WHERE funcional = 1 AND activo = 1")[0][0]
         stats = db_execute("SELECT total, enviados, fallidos FROM stats ORDER BY id DESC LIMIT 1")
         
         msg = (
             f"📊 <b>ESTADO DEL SISTEMA</b>\n"
-            f"🔄 Proxies activos: {proxies_activos}\n"
+            f"🔄 Proxies totales: {proxies_activos}\n"
+            f"✅ Proxies funcionales: {proxies_funcionales}\n"
             f"🚫 Proxies baneados: {proxies_banned}\n"
             f"🚫 Números baneados: {numbers_banned}\n"
             f"📱 Último envío: {stats[0][1] if stats else 0} enviados / {stats[0][2] if stats else 0} fallidos\n"
@@ -615,19 +742,24 @@ def process_telegram_message(message):
     if message.startswith('/proxies'):
         ahora = datetime.now().isoformat()
         proxies = db_execute(
-            """SELECT p.proxy, p.veces_usado, p.fallos, 
+            """SELECT p.proxy, p.veces_usado, p.fallos, p.funcional,
                CASE WHEN b.proxy IS NOT NULL THEN 'baneado' ELSE 'activo' END as estado
                FROM proxies_cache p
                LEFT JOIN proxies_ban b ON p.proxy = b.proxy AND b.expira > ?
                WHERE p.activo = 1
-               ORDER BY p.veces_usado DESC 
-               LIMIT 10""",
+               ORDER BY p.funcional DESC, p.veces_usado DESC 
+               LIMIT 15""",
             (ahora,)
         )
         if proxies:
             msg = "🌐 <b>PROXIES</b>\n\n"
-            for p, usado, fallos, estado in proxies:
-                emoji = "🔴" if estado == "baneado" else "🟢"
+            for p, usado, fallos, funcional, estado in proxies:
+                if estado == "baneado":
+                    emoji = "🔴"
+                elif funcional:
+                    emoji = "🟢"
+                else:
+                    emoji = "🟡"
                 msg += f"{emoji} {p}\n  Usado: {usado} | Fallos: {fallos}\n\n"
             send_telegram_message(msg)
         else:
@@ -648,6 +780,8 @@ def process_telegram_message(message):
     if message.startswith('/refresh'):
         send_telegram_message("🔄 Actualizando proxies...")
         count = refresh_proxy_cache()
+        # Marcar todos como no funcionales para forzar prueba
+        db_execute("UPDATE proxies_cache SET funcional = 0")
         send_telegram_message(f"✅ Proxies actualizados: {count} nuevos proxies añadidos")
         return
     
@@ -677,17 +811,38 @@ def process_telegram_message(message):
                     numeros.append(n)
         elif '-' in numeros_str:
             try:
-                inicio, fin = numeros_str.split('-')
-                inicio = int(inicio.strip())
-                fin = int(fin.strip())
-                if fin > inicio and fin - inicio <= 10000:
-                    for i in range(inicio, fin + 1):
-                        numeros.append(str(i).zfill(8))
-                else:
-                    send_telegram_message("⚠️ Rango demasiado grande (máx 10000 números)")
+                partes_rango = numeros_str.split('-')
+                if len(partes_rango) != 2:
+                    send_telegram_message("⚠️ Formato de rango inválido. Ej: /enviar 59540000-59540100")
                     return
-            except:
-                send_telegram_message("⚠️ Formato de rango inválido. Ej: /enviar 59540000-59540100")
+                
+                inicio = int(partes_rango[0].strip())
+                fin = int(partes_rango[1].strip())
+                
+                if fin <= inicio:
+                    send_telegram_message("⚠️ El fin debe ser mayor que el inicio")
+                    return
+                
+                total_rango = fin - inicio + 1
+                
+                if total_rango > MAX_RANGO_NUMEROS:
+                    send_telegram_message(f"⚠️ Rango demasiado grande (máx {MAX_RANGO_NUMEROS} números)")
+                    return
+                
+                if total_rango > MAX_NUMEROS_POR_ENVIO:
+                    send_telegram_message(
+                        f"⚠️ El rango tiene {total_rango} números, se procesarán en lotes de {LOTE_SIZE}\n"
+                        f"📦 Total lotes: {(total_rango + LOTE_SIZE - 1) // LOTE_SIZE}"
+                    )
+                
+                logger.info(f"📊 Generando {total_rango} números en rango {inicio}-{fin}")
+                numeros = generar_numeros_rango(inicio, fin)
+                
+            except ValueError:
+                send_telegram_message("⚠️ Formato de rango inválido. Usa números. Ej: /enviar 59540000-59540100")
+                return
+            except Exception as e:
+                send_telegram_message(f"⚠️ Error en el rango: {str(e)}")
                 return
         else:
             numeros = [numeros_str]
@@ -696,8 +851,8 @@ def process_telegram_message(message):
             send_telegram_message("⚠️ No se encontraron números válidos")
             return
         
-        if len(numeros) > 500:
-            send_telegram_message("⚠️ Demasiados números (máx 500)")
+        if len(numeros) > MAX_NUMEROS_POR_ENVIO:
+            send_telegram_message(f"⚠️ Demasiados números (máx {MAX_NUMEROS_POR_ENVIO})")
             return
         
         config = {
@@ -707,7 +862,14 @@ def process_telegram_message(message):
             "intervalo": INTERVALO
         }
         
-        send_telegram_message(f"🚀 <b>INICIANDO ENVÍO</b>\n📱 {len(numeros)} números\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        total_lotes = (len(numeros) + LOTE_SIZE - 1) // LOTE_SIZE
+        
+        send_telegram_message(
+            f"🚀 <b>INICIANDO ENVÍO</b>\n"
+            f"📱 {len(numeros)} números\n"
+            f"📦 {total_lotes} lotes de {LOTE_SIZE}\n"
+            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
+        )
         
         def run_send():
             try:
@@ -717,7 +879,8 @@ def process_telegram_message(message):
                     f"📱 {stats['total']} números\n"
                     f"✅ {stats['enviados']} enviados (baneados 24h)\n"
                     f"❌ {stats['fallidos']} fallidos\n"
-                    f"⏭️ {stats['banned']} baneados"
+                    f"⏭️ {stats['banned']} baneados\n"
+                    f"⚠️ {stats['invalid']} inválidos"
                 )
             except Exception as e:
                 send_telegram_message(f"❌ <b>ERROR</b>\n{str(e)}")
@@ -738,9 +901,14 @@ def process_telegram_message(message):
             "/refresh - Actualizar proxies\n"
             "/unban <número> - Desbanear número\n"
             "/help - Esta ayuda\n\n"
+            "📱 <b>Límites:</b>\n"
+            f"• Máx números por envío: {MAX_NUMEROS_POR_ENVIO}\n"
+            f"• Máx rango: {MAX_RANGO_NUMEROS} números\n"
+            f"• Lotes de {LOTE_SIZE} números\n\n"
             "🔄 <b>Política de bans:</b>\n"
             "• SMS exitoso → proxy y número baneados 24h\n"
-            "• Límite diario → solo proxy baneado 24h"
+            "• Límite diario → solo proxy baneado 24h\n"
+            "• Error de conexión → proxy baneado 24h"
         )
         return
 
@@ -780,6 +948,7 @@ def health():
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
         "proxies_activos": db_execute("SELECT COUNT(*) FROM proxies_cache WHERE activo = 1")[0][0],
+        "proxies_funcionales": db_execute("SELECT COUNT(*) FROM proxies_cache WHERE funcional = 1 AND activo = 1")[0][0],
         "proxies_baneados": db_execute("SELECT COUNT(*) FROM proxies_ban WHERE expira > ?", (ahora,))[0][0],
         "numeros_baneados": db_execute("SELECT COUNT(*) FROM numbers_ban WHERE expira > ?", (ahora,))[0][0]
     })
@@ -810,21 +979,22 @@ def main():
         tg_thread.start()
         logger.info("🤖 Polling de Telegram iniciado")
         
-        # Limpiar bans expirados al inicio
         clean_expired_bans()
         
         send_telegram_message(
             "🤖 <b>BOT SMS PRO</b>\n\n"
             "✅ Sistema iniciado\n"
             f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-            "🔄 <b>Política de bans:</b>\n"
-            "• SMS exitoso → proxy y número baneados 24h\n"
-            "• Límite diario → solo proxy baneado 24h\n\n"
+            "🔄 <b>Mejoras implementadas:</b>\n"
+            "• Proxies funcionales marcados para uso rápido\n"
+            "• Modo rápido: usa proxies sin probar si no hay funcionales\n"
+            "• Errores 'test texts' banean solo el proxy\n"
+            "• Recarga inteligente de proxies\n\n"
             "Usa /help para ver comandos"
         )
         
         logger.info("🌐 Servidor iniciado en http://0.0.0.0:5000")
-     #   app.run(host='0.0.0.0', port=5000, debug=False)
+  #      app.run(host='0.0.0.0', port=5000, debug=False)
         
     except Exception as e:
         logger.error(f"❌ Error en main: {e}")
