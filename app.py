@@ -18,11 +18,13 @@ TELEGRAM_CHAT_ID = "7587515668"
 TELEGRAM_ENABLED = True
 
 PAIS = "53"
-MENSAJE = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no espera."
+MENSAJE = "Cubanos, el momento es ahora. La libertad no se pide, se conquista. Levántense, unan sus voces, tomen las calles. El mundo los respalda. ¡Por una Cuba libre!"
 INTENTOS_POR_NUMERO = 3
 INTERVALO = 2
 MAX_INTENTOS_LIMITE = 3
-MAX_PROXIES = 200
+MAX_PROXIES = 300
+TIMEOUT_PROXY = 3
+TIMEOUT_SMS = 15
 
 API_KEYS = ["textbelt"]
 
@@ -82,33 +84,17 @@ def random_user_agent():
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.5938.132 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
-        "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.1 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.6 Safari/605.1.15",
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 Version/16.6 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
         "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
-        "Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0",
-        "Mozilla/5.0 (Android 13; Mobile; rv:119.0) Gecko/119.0 Firefox/119.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.72",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 OPR/105.0.0.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Brave/120.0.0.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Brave/120.0.0.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
-        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 SamsungBrowser/23.0 Chrome/115.0.5790.166 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 SamsungBrowser/21.0 Chrome/113.0.5672.162 Mobile Safari/537.36"
+        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 SamsungBrowser/23.0 Chrome/115.0.5790.166 Mobile Safari/537.36"
     ]
     return random.choice(uas)
 
@@ -127,21 +113,9 @@ def send_telegram_result(numero, success, text_id=None, error=None, intento=None
         return
     
     if success:
-        mensaje = (
-            f"✅ <b>ENVIADO</b>\n"
-            f"📱 Número: <code>+{PAIS}{numero}</code>\n"
-            f"🆔 ID: <code>{text_id or 'OK'}</code>\n"
-            f"🔄 Intento: {intento}/{total_intentos}\n"
-            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
-        )
+        mensaje = f"✅ <b>ENVIADO</b>\n📱 Número: <code>+{PAIS}{numero}</code>\n🆔 ID: <code>{text_id or 'OK'}</code>\n🔄 Intento: {intento}/{total_intentos}\n⏰ {datetime.now().strftime('%H:%M:%S')}"
     else:
-        mensaje = (
-            f"❌ <b>FALLIDO</b>\n"
-            f"📱 Número: <code>+{PAIS}{numero}</code>\n"
-            f"⚠️ Error: <code>{error or 'Desconocido'}</code>\n"
-            f"🔄 Intento: {intento}/{total_intentos}\n"
-            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
-        )
+        mensaje = f"❌ <b>FALLIDO</b>\n📱 Número: <code>+{PAIS}{numero}</code>\n⚠️ Error: <code>{error or 'Desconocido'}</code>\n🔄 Intento: {intento}/{total_intentos}\n⏰ {datetime.now().strftime('%H:%M:%S')}"
     
     thread = threading.Thread(target=send_telegram_message, args=(mensaje,))
     thread.daemon = True
@@ -180,7 +154,7 @@ def add_blacklist(item, blacklist, file):
     blacklist[item] = expiry
     save_json(file, blacklist)
 
-def get_proxies(limit=200):
+def get_proxies(limit=300):
     proxies = []
     sources = [
         "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
@@ -203,7 +177,7 @@ def get_proxies(limit=200):
     
     for url in sources:
         try:
-            r = requests.get(url, timeout=15)
+            r = requests.get(url, timeout=10)
             if r.status_code == 200:
                 for line in r.text.splitlines():
                     line = line.strip()
@@ -224,7 +198,7 @@ def get_proxies(limit=200):
 
 def test_proxy(proxy):
     try:
-        r = requests.get('https://www.google.com', proxies={"http": proxy, "https": proxy}, timeout=5)
+        r = requests.get('https://www.google.com', proxies={"http": proxy, "https": proxy}, timeout=3)
         if r.status_code == 200:
             return proxy
     except:
@@ -280,8 +254,7 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
     max_intentos = config['intentos']
     
     if is_blacklisted(numero, numbers_blacklist):
-        mensaje = f"⏭️ <b>BLACKLIST</b>\n📱 Número: <code>+{config['pais']}{numero}</code>\n⏰ 24h de bloqueo"
-        send_telegram_message(mensaje)
+        send_telegram_message(f"⏭️ <b>BLACKLIST</b>\n📱 +{config['pais']}{numero}\n⏰ 24h")
         return False, "blacklist"
     
     intentos_reales = 0
@@ -289,8 +262,16 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
     
     while intentos_reales < max_intentos:
         if not working_proxies:
-            send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies disponibles")
-            return False, "sin_proxies"
+            logger.warning("⚠️ No hay proxies, recargando...")
+            send_telegram_message("🔄 <b>RECARGANDO PROXIES</b>")
+            proxy_list = get_proxies(MAX_PROXIES)
+            if proxy_list:
+                working_proxies.extend(get_working_proxies(proxy_list))
+                logger.info(f"✅ Recargados {len(working_proxies)} proxies")
+            if not working_proxies:
+                send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies disponibles")
+                time.sleep(10)
+                continue
         
         proxy = random.choice(working_proxies)
         
@@ -305,25 +286,14 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
         success, text_id, error = send_sms(phone, message, api_key, proxy)
         
         if error in ["TIMEOUT", "CONNECTION_ERROR"] or "ConnectionError" in str(error):
-            mensaje = f"⚠️ <b>ERROR CONEXIÓN</b>\n📱 +{config['pais']}{numero}\n🔄 Reintentando..."
-            send_telegram_message(mensaje)
-            
             add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
-            
-            if len(working_proxies) < 5:
-                new_proxies = get_proxies(MAX_PROXIES)
-                if new_proxies:
-                    new_working = get_working_proxies(new_proxies)
-                    working_proxies.extend(new_working)
-            
-            time.sleep(1)
+            time.sleep(0.5)
             continue
         
         if success:
             send_telegram_result(numero, True, text_id, None, intento_actual, max_intentos)
-            
             add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
@@ -334,8 +304,7 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
             intentos_reales += 1
             
             if intentos_limite >= MAX_INTENTOS_LIMITE:
-                mensaje = f"🚫 <b>BLACKLIST</b>\n📱 +{config['pais']}{numero}\n⚠️ {MAX_INTENTOS_LIMITE} intentos\n⏰ Bloqueado 24h"
-                send_telegram_message(mensaje)
+                send_telegram_message(f"🚫 <b>BLACKLIST</b>\n📱 +{config['pais']}{numero}\n⚠️ {MAX_INTENTOS_LIMITE} intentos\n⏰ 24h")
                 add_blacklist(numero, numbers_blacklist, NUMBERS_BLACKLIST_FILE)
                 return False, "limite_blacklist"
             
@@ -344,10 +313,9 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
                 working_proxies.remove(proxy)
             
             if len(working_proxies) < 5:
-                new_proxies = get_proxies(MAX_PROXIES)
-                if new_proxies:
-                    new_working = get_working_proxies(new_proxies)
-                    working_proxies.extend(new_working)
+                proxy_list = get_proxies(MAX_PROXIES)
+                if proxy_list:
+                    working_proxies.extend(get_working_proxies(proxy_list))
             
             if intentos_reales < max_intentos:
                 time.sleep(config['intervalo'] + random.uniform(0, 1))
@@ -360,6 +328,11 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
         if proxy in working_proxies:
             working_proxies.remove(proxy)
         
+        if len(working_proxies) < 5:
+            proxy_list = get_proxies(MAX_PROXIES)
+            if proxy_list:
+                working_proxies.extend(get_working_proxies(proxy_list))
+        
         if intentos_reales < max_intentos:
             time.sleep(config['intervalo'] + random.uniform(0, 1))
     
@@ -367,23 +340,17 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
 
 def ejecutar_envio(numeros, config):
     try:
-        logger.info(f"🚀 INICIANDO ENVÍO: {len(numeros)} números")
-        
-        send_telegram_message(f"🚀 <b>INICIANDO</b>\n📱 Total: {len(numeros)}\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        total = len(numeros)
+        logger.info(f"🚀 INICIANDO ENVÍO: {total} números")
+        send_telegram_message(f"🚀 <b>INICIANDO</b>\n📱 Total: {total}\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         
         proxy_list = get_proxies(MAX_PROXIES)
-        
-        if not proxy_list:
-            logger.error("❌ No se obtuvieron proxies")
-            send_telegram_message("❌ <b>ERROR</b>\nNo se obtuvieron proxies")
-            return {"total": len(numeros), "enviados": 0, "fallidos": len(numeros), "blacklist": 0}
-        
-        working_proxies = get_working_proxies(proxy_list)
+        working_proxies = get_working_proxies(proxy_list) if proxy_list else []
         
         if not working_proxies:
             logger.error("❌ No hay proxies funcionales")
             send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies funcionales")
-            return {"total": len(numeros), "enviados": 0, "fallidos": len(numeros), "blacklist": 0}
+            return {"total": total, "enviados": 0, "fallidos": total, "blacklist": 0}
         
         logger.info(f"✅ {len(working_proxies)} proxies funcionales")
         send_telegram_message(f"✅ <b>PROXIES</b>\n{len(working_proxies)} funcionales")
@@ -391,15 +358,12 @@ def ejecutar_envio(numeros, config):
         proxy_blacklist = load_json(BLACKLIST_FILE)
         numbers_blacklist = load_json(NUMBERS_BLACKLIST_FILE)
         
-        stats = {"total": len(numeros), "enviados": 0, "fallidos": 0, "blacklist": 0, "limite_blacklist": 0}
+        stats = {"total": total, "enviados": 0, "fallidos": 0, "blacklist": 0, "limite_blacklist": 0}
         
         for i, numero in enumerate(numeros, 1):
-            logger.info(f"▶ [{i}/{stats['total']}] +{config['pais']} {numero}")
+            logger.info(f"▶ [{i}/{total}] +{config['pais']} {numero}")
             
-            success, result = process_number(
-                numero, config, working_proxies,
-                proxy_blacklist, numbers_blacklist
-            )
+            success, result = process_number(numero, config, working_proxies, proxy_blacklist, numbers_blacklist)
             
             if success:
                 stats['enviados'] += 1
@@ -411,21 +375,18 @@ def ejecutar_envio(numeros, config):
             else:
                 stats['fallidos'] += 1
             
-            if i % 10 == 0:
-                resumen = (
-                    f"📊 <b>PROGRESO</b> [{i}/{stats['total']}]\n"
-                    f"✅ {stats['enviados']} | ❌ {stats['fallidos']}\n"
-                    f"⏭️ {stats['blacklist']} | 🔌 {len(working_proxies)}"
-                )
-                send_telegram_message(resumen)
+            logger.info(f"📊 Progreso: {i}/{total} | ✅ {stats['enviados']} | ❌ {stats['fallidos']} | 🔌 {len(working_proxies)}")
             
             if len(working_proxies) < 3:
-                new_proxies = get_proxies(MAX_PROXIES)
-                if new_proxies:
-                    new_working = get_working_proxies(new_proxies)
-                    working_proxies.extend(new_working)
+                logger.info("🔄 Recargando proxies...")
+                proxy_list = get_proxies(MAX_PROXIES)
+                if proxy_list:
+                    new_proxies = get_working_proxies(proxy_list)
+                    working_proxies.extend(new_proxies)
+                    logger.info(f"✅ Recargados {len(new_proxies)} proxies")
+                    send_telegram_message(f"🔄 <b>PROXIES</b>\n+{len(new_proxies)} nuevos")
             
-            if i < stats['total']:
+            if i < total:
                 time.sleep(config['intervalo'] * 0.5 + random.uniform(0, 2))
         
         resumen = (
@@ -884,4 +845,3 @@ def api_logs():
             return jsonify({"status": "ok", "logs": logs})
     except:
         return jsonify({"status": "ok", "logs": []})
-
