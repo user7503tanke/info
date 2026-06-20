@@ -1136,12 +1136,3 @@ def api_logs():
     except:
         return jsonify({"status": "ok", "logs": []})
 
-# ==================== MAIN ====================
-if __name__ == '__main__':
-    # Modo desarrollo
-    logger.info("🚀 SMS Pro iniciado en modo desarrollo")
-    app.run(host='0.0.0.0', port=5000, debug=True)
-else:
-    # Modo producción (Gunicorn)
-    logger.info("🚀 SMS Pro iniciado en modo producción")
-    send_telegram_message("🚀 <b>SMS Pro iniciado</b>\nServidor en ejecución")
