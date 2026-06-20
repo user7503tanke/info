@@ -166,8 +166,8 @@ logger = setup_logging()
 def get_proxies_from_sources(limit=200):
     proxies = []
     sources = [
-  #      "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
-        "https://www.proxy-list.download/api/v1/get?type=http",
+        "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
+  #      "https://www.proxy-list.download/api/v1/get?type=http",
 #        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
    #     "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
    #     "https://raw.githubusercontent.com/roosterkid/openproxylist/main/http.txt",
