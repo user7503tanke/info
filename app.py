@@ -8,154 +8,170 @@ import random
 import time
 import threading
 import logging
+import sqlite3
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
 import requests
+from functools import wraps
 
+# ============ CONFIGURACIÓN ============
 TELEGRAM_BOT_TOKEN = "7920655514:AAEH1vWk2hOkNfN_eREpe6DrPBz1mZNAQYw"
 TELEGRAM_CHAT_ID = "7587515668"
-TELEGRAM_ENABLED = True
 
 PAIS = "53"
-MENSAJE = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no espera."
+MENSAJE_DEFAULT = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no espera."
 INTENTOS_POR_NUMERO = 10
 INTERVALO = 1
-MAX_INTENTOS_LIMITE = 20
 MAX_PROXIES = 100
 TIMEOUT_PROXY = 10
 TIMEOUT_SMS = 15
 
-API_KEYS = ["textbelt"]
+# ============ BASE DE DATOS ============
+DB_FILE = "sms_bot.db"
 
-BLACKLIST_FILE = "proxy_blacklist.json"
-NUMBERS_BLACKLIST_FILE = "numbers_blacklist.json"
-CONFIG_FILE = "sms_config.json"
-LOG_FILE = "sms_pro.log"
-
-app = Flask(__name__)
-app.secret_key = 'tu_clave_secreta_cambia_esto'
-
-class TelegramHandler(logging.Handler):
-    def __init__(self, bot_token, chat_id):
-        super().__init__()
-        self.bot_token = bot_token
-        self.chat_id = chat_id
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
     
+    # Tabla de números bloqueados (ban)
+    c.execute('''CREATE TABLE IF NOT EXISTS numbers_ban (
+        numero TEXT PRIMARY KEY,
+        pais TEXT,
+        fecha_ban TIMESTAMP,
+        razon TEXT,
+        intentos_fallidos INTEGER DEFAULT 0
+    )''')
+    
+    # Tabla de proxies bloqueados
+    c.execute('''CREATE TABLE IF NOT EXISTS proxies_ban (
+        proxy TEXT PRIMARY KEY,
+        fecha_ban TIMESTAMP,
+        razon TEXT,
+        fallos_consecutivos INTEGER DEFAULT 0
+    )''')
+    
+    # Tabla de proxies activos (cache)
+    c.execute('''CREATE TABLE IF NOT EXISTS proxies_cache (
+        proxy TEXT PRIMARY KEY,
+        ultimo_uso TIMESTAMP,
+        veces_usado INTEGER DEFAULT 0,
+        fallos INTEGER DEFAULT 0,
+        activo INTEGER DEFAULT 1
+    )''')
+    
+    # Tabla de estadísticas
+    c.execute('''CREATE TABLE IF NOT EXISTS stats (
+        id INTEGER PRIMARY KEY,
+        fecha TIMESTAMP,
+        enviados INTEGER DEFAULT 0,
+        fallidos INTEGER DEFAULT 0,
+        total INTEGER DEFAULT 0,
+        blacklist INTEGER DEFAULT 0
+    )''')
+    
+    # Tabla de configuración
+    c.execute('''CREATE TABLE IF NOT EXISTS config (
+        clave TEXT PRIMARY KEY,
+        valor TEXT
+    )''')
+    
+    # Tabla de logs
+    c.execute('''CREATE TABLE IF NOT EXISTS logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TIMESTAMP,
+        nivel TEXT,
+        mensaje TEXT
+    )''')
+    
+    # Tabla de tareas activas
+    c.execute('''CREATE TABLE IF NOT EXISTS tareas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tarea_id TEXT UNIQUE,
+        fecha_inicio TIMESTAMP,
+        total_numeros INTEGER,
+        enviados INTEGER DEFAULT 0,
+        fallidos INTEGER DEFAULT 0,
+        estado TEXT DEFAULT 'activa',
+        datos TEXT
+    )''')
+    
+    conn.commit()
+    conn.close()
+
+def db_execute(query, params=()):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute(query, params)
+    conn.commit()
+    result = c.fetchall()
+    conn.close()
+    return result
+
+def db_execute_many(query, params_list):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.executemany(query, params_list)
+    conn.commit()
+    conn.close()
+
+# ============ LOGGING ============
+class DatabaseLogHandler(logging.Handler):
     def emit(self, record):
-        if not TELEGRAM_ENABLED:
-            return
         try:
             msg = self.format(record)
-            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-            data = {"chat_id": self.chat_id, "text": msg[:4096], "parse_mode": "HTML"}
-            thread = threading.Thread(target=self._send_telegram, args=(url, data))
-            thread.daemon = True
-            thread.start()
+            nivel = record.levelname.lower()
+            db_execute(
+                "INSERT INTO logs (fecha, nivel, mensaje) VALUES (?, ?, ?)",
+                (datetime.now().isoformat(), nivel, msg[:500])
+            )
         except:
             pass
-    
-    def _send_telegram(self, url, data):
+
+class TelegramLogHandler(logging.Handler):
+    def emit(self, record):
         try:
-            requests.post(url, data=data, timeout=5)
+            msg = self.format(record)
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            data = {"chat_id": TELEGRAM_CHAT_ID, "text": msg[:4096], "parse_mode": "HTML"}
+            threading.Thread(target=lambda: requests.post(url, data=data, timeout=5)).start()
         except:
             pass
 
 def setup_logging():
-    logger = logging.getLogger('SMSPro')
+    logger = logging.getLogger('SMSBot')
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     
-    file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    # Handler consola
+    console = logging.StreamHandler()
+    console.setFormatter(formatter)
+    logger.addHandler(console)
     
-    if TELEGRAM_ENABLED:
-        telegram_handler = TelegramHandler(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-        telegram_handler.setFormatter(formatter)
-        logger.addHandler(telegram_handler)
+    # Handler base de datos
+    db_handler = DatabaseLogHandler()
+    db_handler.setFormatter(formatter)
+    logger.addHandler(db_handler)
+    
+    # Handler Telegram
+    tg_handler = TelegramLogHandler()
+    tg_handler.setFormatter(formatter)
+    logger.addHandler(tg_handler)
     
     return logger
 
 logger = setup_logging()
 
-def random_user_agent():
-    uas = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.1 Safari/605.1.15",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
-    ]
-    return random.choice(uas)
-
-def send_telegram_message(message):
-    if not TELEGRAM_ENABLED:
-        return
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        data = {"chat_id": TELEGRAM_CHAT_ID, "text": message[:4096], "parse_mode": "HTML"}
-        requests.post(url, data=data, timeout=5)
-    except:
-        pass
-
-def send_telegram_result(numero, success, text_id=None, error=None, intento=None, total_intentos=None):
-    if not TELEGRAM_ENABLED:
-        return
-    
-    if success:
-        mensaje = f"✅ <b>ENVIADO</b>\n📱 +{PAIS}{numero}\n🆔 {text_id or 'OK'}\n🔄 {intento}/{total_intentos}"
-    else:
-        mensaje = f"❌ <b>FALLIDO</b>\n📱 +{PAIS}{numero}\n⚠️ {error or 'Desconocido'}\n🔄 {intento}/{total_intentos}"
-    
-    thread = threading.Thread(target=send_telegram_message, args=(mensaje,))
-    thread.daemon = True
-    thread.start()
-
-def load_json(file, default=None):
-    try:
-        with open(file, 'r') as f:
-            return json.load(f)
-    except:
-        return default if default is not None else {}
-
-def save_json(file, data):
-    with open(file, 'w') as f:
-        json.dump(data, f, indent=2)
-
-def is_blacklisted(item, blacklist):
-    if not item:
-        return False
-    if item in blacklist:
-        try:
-            expiry = datetime.fromisoformat(blacklist[item])
-            if datetime.now() < expiry:
-                return True
-            else:
-                del blacklist[item]
-                return False
-        except:
-            return False
-    return False
-
-def add_blacklist(item, blacklist, file):
-    if not item:
-        return
-    expiry = (datetime.now() + timedelta(hours=24)).isoformat()
-    blacklist[item] = expiry
-    save_json(file, blacklist)
-
-def get_proxies(limit=10):
+# ============ FUNCIONES DE PROXY ============
+def get_proxies_from_sources(limit=100):
+    """Obtiene proxies de fuentes externas"""
     proxies = []
     sources = [
         "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
         "https://www.proxy-list.download/api/v1/get?type=http",
-   ]
+        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
+        "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
+    ]
     
     for url in sources:
         try:
@@ -172,57 +188,195 @@ def get_proxies(limit=10):
         except:
             continue
     
-    blacklist = load_json(BLACKLIST_FILE)
-    proxies = list(set(proxies))
-    proxies = [p for p in proxies if not is_blacklisted(p, blacklist)]
+    return list(set(proxies))[:limit]
+
+def get_cached_proxies(limit=100):
+    """Obtiene proxies de la caché que no estén banneados"""
+    result = db_execute(
+        """SELECT proxy FROM proxies_cache 
+           WHERE activo = 1 
+           AND proxy NOT IN (SELECT proxy FROM proxies_ban)
+           ORDER BY veces_usado ASC, fallos ASC 
+           LIMIT ?""",
+        (limit,)
+    )
+    return [r[0] for r in result]
+
+def refresh_proxy_cache():
+    """Actualiza la caché de proxies"""
+    logger.info("🔄 Actualizando caché de proxies...")
     
-    return proxies[:limit]
+    # Obtener proxies de fuentes
+    new_proxies = get_proxies_from_sources(MAX_PROXIES)
+    
+    if not new_proxies:
+        logger.warning("⚠️ No se obtuvieron proxies de fuentes externas")
+        return 0
+    
+    # Obtener proxies existentes
+    existing = db_execute("SELECT proxy FROM proxies_cache")
+    existing_set = {r[0] for r in existing}
+    
+    # Insertar nuevos proxies
+    to_insert = []
+    for proxy in new_proxies:
+        if proxy not in existing_set:
+            to_insert.append((proxy, datetime.now().isoformat(), 0, 0, 1))
+    
+    if to_insert:
+        db_execute_many(
+            "INSERT OR IGNORE INTO proxies_cache (proxy, ultimo_uso, veces_usado, fallos, activo) VALUES (?, ?, ?, ?, ?)",
+            to_insert
+        )
+    
+    # Marcar proxies antiguos como inactivos si hay muchos
+    total = db_execute("SELECT COUNT(*) FROM proxies_cache WHERE activo = 1")[0][0]
+    if total > MAX_PROXIES * 2:
+        db_execute(
+            """UPDATE proxies_cache SET activo = 0 
+               WHERE proxy IN (
+                   SELECT proxy FROM proxies_cache 
+                   WHERE activo = 1 
+                   ORDER BY ultimo_uso ASC 
+                   LIMIT ?
+               )""",
+            (total - MAX_PROXIES,)
+        )
+    
+    logger.info(f"✅ Caché actualizada: {len(to_insert)} nuevos proxies, {total} activos")
+    return len(to_insert)
 
 def test_proxy(proxy):
+    """Prueba si un proxy funciona"""
     try:
         r = requests.get('https://www.google.com', proxies={"http": proxy, "https": proxy}, timeout=3)
         if r.status_code == 200:
-            return proxy
+            return True
     except:
         pass
-    return None
+    return False
 
-def get_working_proxies(proxy_list, max_workers=10):
-    if not proxy_list:
-        return []
+def get_working_proxies(limit=20):
+    """Obtiene proxies funcionales"""
+    # Primero intentar con caché
+    cached = get_cached_proxies(limit * 2)
     
-    blacklist = load_json(BLACKLIST_FILE)
-    proxy_list = [p for p in proxy_list if not is_blacklisted(p, blacklist)]
+    if cached:
+        # Probar los proxies en caché
+        working = []
+        for proxy in cached[:limit]:
+            if test_proxy(proxy):
+                working.append(proxy)
+                db_execute(
+                    "UPDATE proxies_cache SET ultimo_uso = ?, veces_usado = veces_usado + 1 WHERE proxy = ?",
+                    (datetime.now().isoformat(), proxy)
+                )
+            else:
+                # Marcar como fallido
+                db_execute(
+                    "UPDATE proxies_cache SET fallos = fallos + 1 WHERE proxy = ?",
+                    (proxy,)
+                )
+                if db_execute("SELECT fallos FROM proxies_cache WHERE proxy = ?", (proxy,))[0][0] >= 5:
+                    db_execute("UPDATE proxies_cache SET activo = 0 WHERE proxy = ?", (proxy,))
+        
+        if working:
+            return working
     
-    if not proxy_list:
-        return []
+    # Si no hay proxies funcionales, refrescar caché
+    refresh_proxy_cache()
+    cached = get_cached_proxies(limit)
     
     working = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(test_proxy, p): p for p in proxy_list}
-        for future in as_completed(futures):
-            res = future.result()
-            if res:
-                working.append(res)
-                if len(working) >= 100:
-                    break
+    for proxy in cached:
+        if test_proxy(proxy):
+            working.append(proxy)
+            db_execute(
+                "UPDATE proxies_cache SET ultimo_uso = ?, veces_usado = veces_usado + 1 WHERE proxy = ?",
+                (datetime.now().isoformat(), proxy)
+            )
+        if len(working) >= limit:
+            break
     
     return working
 
+def ban_proxy(proxy, razon="fallo"):
+    """Bannea un proxy"""
+    db_execute(
+        "INSERT OR REPLACE INTO proxies_ban (proxy, fecha_ban, razon) VALUES (?, ?, ?)",
+        (proxy, datetime.now().isoformat(), razon)
+    )
+    db_execute("UPDATE proxies_cache SET activo = 0 WHERE proxy = ?", (proxy,))
+    logger.info(f"🚫 Proxy baneado: {proxy} - {razon}")
+
+def is_proxy_banned(proxy):
+    """Verifica si un proxy está baneado"""
+    result = db_execute("SELECT proxy FROM proxies_ban WHERE proxy = ?", (proxy,))
+    return len(result) > 0
+
+# ============ FUNCIONES DE NÚMEROS ============
+def ban_number(numero, pais, razon="limite_alcanzado"):
+    """Bannea un número"""
+    db_execute(
+        "INSERT OR REPLACE INTO numbers_ban (numero, pais, fecha_ban, razon) VALUES (?, ?, ?, ?)",
+        (numero, pais, datetime.now().isoformat(), razon)
+    )
+    logger.info(f"🚫 Número baneado: +{pais}{numero} - {razon}")
+
+def is_number_banned(numero, pais):
+    """Verifica si un número está baneado"""
+    result = db_execute(
+        "SELECT numero FROM numbers_ban WHERE numero = ? AND pais = ?",
+        (numero, pais)
+    )
+    return len(result) > 0
+
+def increment_number_failures(numero, pais):
+    """Incrementa el contador de fallos de un número"""
+    db_execute(
+        """INSERT INTO numbers_ban (numero, pais, intentos_fallidos, fecha_ban) 
+           VALUES (?, ?, 1, ?) 
+           ON CONFLICT(numero) DO UPDATE SET 
+           intentos_fallidos = intentos_fallidos + 1""",
+        (numero, pais, datetime.now().isoformat())
+    )
+    
+    # Verificar si supera el límite
+    result = db_execute(
+        "SELECT intentos_fallidos FROM numbers_ban WHERE numero = ? AND pais = ?",
+        (numero, pais)
+    )
+    if result and result[0][0] >= INTENTOS_POR_NUMERO:
+        ban_number(numero, pais, "demasiados_fallos")
+        return True
+    return False
+
+# ============ FUNCIONES DE SMS ============
+def random_user_agent():
+    uas = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
+    ]
+    return random.choice(uas)
+
 def send_sms(phone, message, api_key, proxy):
+    """Envía un SMS usando Textbelt"""
     url = "https://textbelt.com/text"
     data = {"phone": phone, "message": message, "key": api_key}
     headers = {"User-Agent": random_user_agent()}
     proxies = {"http": proxy, "https": proxy} if proxy else None
     
     try:
-        r = requests.post(url, data=data, headers=headers, proxies=proxies, timeout=10)
+        r = requests.post(url, data=data, headers=headers, proxies=proxies, timeout=TIMEOUT_SMS)
         if r.status_code == 200:
             result = r.json()
             if result.get('success'):
                 return True, result.get('textId', 'OK'), None
             else:
-                return False, None, result.get('error', 'Error')
+                return False, None, result.get('error', 'Error desconocido')
         else:
             return False, None, f"HTTP {r.status_code}"
     except requests.exceptions.Timeout:
@@ -232,596 +386,432 @@ def send_sms(phone, message, api_key, proxy):
     except Exception as e:
         return False, None, str(e)[:50]
 
-def process_number(numero, config, working_proxies, proxy_blacklist, numbers_blacklist):
-    phone = '+' + config['pais'] + numero
-    message = config['mensaje']
-    max_intentos = config['intentos']
+def process_number(numero, config, working_proxies):
+    """Procesa un número individual"""
+    pais = config.get('pais', PAIS)
+    mensaje = config.get('mensaje', MENSAJE_DEFAULT)
+    max_intentos = config.get('intentos', INTENTOS_POR_NUMERO)
     
-    if is_blacklisted(numero, numbers_blacklist):
-        return False, "blacklist"
+    # Verificar si el número está baneado
+    if is_number_banned(numero, pais):
+        logger.debug(f"⏭️ Número baneado: +{pais}{numero}")
+        return False, "banned"
     
-    intentos_reales = 0
+    phone = '+' + pais + numero
     
-    while intentos_reales < max_intentos:
+    intentos = 0
+    while intentos < max_intentos:
+        # Obtener proxy
         if not working_proxies:
-            logger.warning("⚠️ No hay proxies, recargando...")
-            proxy_list = get_proxies(MAX_PROXIES)
-            if proxy_list:
-                new_proxies = get_working_proxies(proxy_list)
+            logger.warning("⚠️ Sin proxies, recargando...")
+            new_proxies = get_working_proxies(10)
+            if new_proxies:
                 working_proxies.extend(new_proxies)
-                logger.info(f"✅ Recargados {len(new_proxies)} proxies")
-            if not working_proxies:
-                time.sleep(5)
+            else:
+                time.sleep(3)
                 continue
         
         proxy = random.choice(working_proxies)
         
-        if proxy and is_blacklisted(proxy, proxy_blacklist):
+        # Verificar si el proxy está baneado
+        if is_proxy_banned(proxy):
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
             continue
         
-        api_key = random.choice(API_KEYS)
-        intento_actual = intentos_reales + 1
+        # Usar API key (solo textbelt por ahora)
+        api_key = "textbelt"
         
-        success, text_id, error = send_sms(phone, message, api_key, proxy)
+        intentos += 1
+        logger.debug(f"📤 Enviando a +{pais}{numero} (intento {intentos}/{max_intentos}) con {proxy}")
         
-        if error in ["TIMEOUT", "CONNECTION_ERROR"]:
-            add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
-            if proxy in working_proxies:
-                working_proxies.remove(proxy)
-            time.sleep(0.5)
-            continue
+        success, text_id, error = send_sms(phone, mensaje, api_key, proxy)
         
         if success:
-            add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
+            # Marcar proxy como usado
+            db_execute(
+                "UPDATE proxies_cache SET ultimo_uso = ?, veces_usado = veces_usado + 1 WHERE proxy = ?",
+                (datetime.now().isoformat(), proxy)
+            )
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
             return True, text_id
         
-        if error and any(p in error.lower() for p in ["only one", "limit", "quota"]):
-            intentos_reales += 1
-            if intentos_reales >= max_intentos:
-                add_blacklist(numero, numbers_blacklist, NUMBERS_BLACKLIST_FILE)
-                return False, "limite_blacklist"
-            
-            add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
+        # Manejar errores
+        if error in ["TIMEOUT", "CONNECTION_ERROR"]:
+            ban_proxy(proxy, error)
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
-            
-            if len(working_proxies) < 10:
-                proxy_list = get_proxies(MAX_PROXIES)
-                if proxy_list:
-                    new_proxies = get_working_proxies(proxy_list)
-                    working_proxies.extend(new_proxies)
-            
-            if intentos_reales < max_intentos:
-                time.sleep(config['intervalo'] + random.uniform(0, 0.5))
             continue
         
-        intentos_reales += 1
-        add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
-        if proxy in working_proxies:
-            working_proxies.remove(proxy)
+        if error and any(p in error.lower() for p in ["only one", "limit", "quota"]):
+            # Límite de API alcanzado
+            if increment_number_failures(numero, pais):
+                return False, "banned"
+            continue
         
-        if len(working_proxies) < 10:
-            proxy_list = get_proxies(MAX_PROXIES)
-            if proxy_list:
-                new_proxies = get_working_proxies(proxy_list)
-                working_proxies.extend(new_proxies)
+        # Otros errores
+        if error and "invalid" in error.lower():
+            # Número inválido
+            ban_number(numero, pais, "numero_invalido")
+            return False, "invalid"
         
-        if intentos_reales < max_intentos:
-            time.sleep(config['intervalo'] + random.uniform(0, 0.5))
+        # Error genérico
+        if error and "blacklist" in error.lower():
+            ban_number(numero, pais, "blacklist")
+            return False, "banned"
+        
+        # Incrementar fallos
+        if increment_number_failures(numero, pais):
+            return False, "banned"
     
-    return False, "agotado"
+    return False, "max_intentos"
 
 def ejecutar_envio(numeros, config):
+    """Ejecuta el envío masivo"""
     try:
         total = len(numeros)
         logger.info(f"🚀 INICIANDO ENVÍO: {total} números")
-        send_telegram_message(f"🚀 <b>INICIANDO</b>\n📱 Total: {total}\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         
-        # Obtener proxies iniciales
-        proxy_list = get_proxies(MAX_PROXIES)
-        working_proxies = get_working_proxies(proxy_list) if proxy_list else []
-        
+        # Obtener proxies funcionales
+        working_proxies = get_working_proxies(20)
         if not working_proxies:
-            logger.error("❌ No hay proxies funcionales")
-            send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies funcionales")
-            return {"total": total, "enviados": 0, "fallidos": total, "blacklist": 0}
+            logger.error("❌ No hay proxies funcionales disponibles")
+            send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies funcionales disponibles")
+            return {"total": total, "enviados": 0, "fallidos": total}
         
         logger.info(f"✅ {len(working_proxies)} proxies funcionales")
-        send_telegram_message(f"✅ <b>PROXIES</b>\n{len(working_proxies)} funcionales")
         
-        proxy_blacklist = load_json(BLACKLIST_FILE)
-        numbers_blacklist = load_json(NUMBERS_BLACKLIST_FILE)
-        
-        stats = {"total": total, "enviados": 0, "fallidos": 0, "blacklist": 0}
-        sin_proxies = 0
+        stats = {"total": total, "enviados": 0, "fallidos": 0, "banned": 0, "invalid": 0}
         
         for i, numero in enumerate(numeros, 1):
-            logger.info(f"▶ [{i}/{total}] +{config['pais']} {numero}")
+            logger.info(f"▶ [{i}/{total}] Procesando +{config['pais']}{numero}")
             
-            success, result = process_number(numero, config, working_proxies, proxy_blacklist, numbers_blacklist)
+            success, result = process_number(numero, config, working_proxies)
             
             if success:
                 stats['enviados'] += 1
-                send_telegram_result(numero, True, result, None, 1, config['intentos'])
-            elif result == "blacklist" or result == "limite_blacklist":
-                stats['blacklist'] += 1
+                logger.info(f"✅ Enviado: +{config['pais']}{numero} (ID: {result})")
+            elif result == "banned":
+                stats['banned'] += 1
+                logger.info(f"⏭️ Baneado: +{config['pais']}{numero}")
+            elif result == "invalid":
+                stats['invalid'] += 1
+                logger.info(f"⚠️ Inválido: +{config['pais']}{numero}")
             else:
                 stats['fallidos'] += 1
+                logger.info(f"❌ Fallido: +{config['pais']}{numero}")
             
-            # Mostrar progreso cada 5 números
+            # Mostrar progreso
             if i % 5 == 0:
-                logger.info(f"📊 Progreso: {i}/{total} | ✅ {stats['enviados']} | ❌ {stats['fallidos']} | 🔌 {len(working_proxies)}")
+                logger.info(f"📊 Progreso: {i}/{total} | ✅ {stats['enviados']} | ❌ {stats['fallidos']} | ⏭️ {stats['banned']}")
+                send_telegram_message(
+                    f"📊 <b>PROGRESO</b>\n"
+                    f"📱 {i}/{total}\n"
+                    f"✅ {stats['enviados']} enviados\n"
+                    f"❌ {stats['fallidos']} fallidos\n"
+                    f"⏭️ {stats['banned']} baneados"
+                )
             
-            # Si no hay proxies, esperar y recargar
-            if not working_proxies:
-                sin_proxies += 1
-                if sin_proxies > 3:
-                    logger.error("❌ Sin proxies después de 3 intentos, deteniendo")
-                    send_telegram_message("❌ <b>DETENIDO</b>\nSin proxies disponibles")
-                    break
+            # Recargar proxies si es necesario
+            if len(working_proxies) < 5:
                 logger.info("🔄 Recargando proxies...")
-                proxy_list = get_proxies(MAX_PROXIES)
-                if proxy_list:
-                    working_proxies = get_working_proxies(proxy_list)
-                    logger.info(f"✅ Recargados {len(working_proxies)} proxies")
-                time.sleep(5)
-                continue
+                new_proxies = get_working_proxies(10)
+                if new_proxies:
+                    working_proxies.extend(new_proxies)
+                    logger.info(f"✅ {len(new_proxies)} proxies añadidos")
             
+            # Esperar entre envíos
             if i < total:
-                time.sleep(config['intervalo'] * 0.5 + random.uniform(0, 1))
+                time.sleep(config.get('intervalo', INTERVALO) * 0.5 + random.uniform(0, 0.5))
+        
+        # Guardar estadísticas
+        db_execute(
+            "INSERT INTO stats (fecha, enviados, fallidos, total, blacklist) VALUES (?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(), stats['enviados'], stats['fallidos'], stats['total'], stats['banned'])
+        )
         
         resumen = (
-            f"📊 <b>RESUMEN</b>\n"
-            f"📱 Total: {stats['total']}\n"
+            f"📊 <b>RESUMEN FINAL</b>\n"
+            f"📱 Total: {total}\n"
             f"✅ Enviados: {stats['enviados']}\n"
             f"❌ Fallidos: {stats['fallidos']}\n"
-            f"⏭️ Blacklist: {stats['blacklist']}\n"
-            f"🔌 Proxies: {len(working_proxies)}\n"
+            f"⏭️ Baneados: {stats['banned']}\n"
+            f"⚠️ Inválidos: {stats['invalid']}\n"
+            f"🔌 Proxies disponibles: {len(working_proxies)}\n"
             f"⏰ {datetime.now().strftime('%H:%M:%S')}"
         )
         
         logger.info(resumen)
         send_telegram_message(resumen)
         
-        stats['fecha'] = datetime.now().isoformat()
-        save_json("sms_stats.json", stats)
-        
         return stats
+        
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"❌ Error en envío: {e}")
         send_telegram_message(f"❌ <b>ERROR</b>\n{str(e)}")
         raise
 
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMS Pro</title>
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height:100vh; padding:20px; }
-        .container { max-width:1200px; margin:0 auto; }
-        .header { background:rgba(255,255,255,0.95); border-radius:20px; padding:30px; margin-bottom:30px; text-align:center; }
-        .header h1 { color:#333; font-size:2.5em; }
-        .header h1 span { background:linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .grid { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-bottom:30px; }
-        @media (max-width:768px) { .grid { grid-template-columns:1fr; } }
-        .card { background:rgba(255,255,255,0.95); border-radius:20px; padding:25px; }
-        .card h2 { color:#333; margin-bottom:20px; border-bottom:3px solid #667eea; padding-bottom:10px; }
-        .form-group { margin-bottom:15px; }
-        .form-group label { display:block; color:#555; font-weight:600; margin-bottom:5px; font-size:0.9em; }
-        .form-group input, .form-group textarea { width:100%; padding:12px 15px; border:2px solid #e1e1e1; border-radius:10px; font-size:1em; font-family:inherit; }
-        .form-group input:focus, .form-group textarea:focus { outline:none; border-color:#667eea; }
-        .form-group textarea { min-height:80px; resize:vertical; }
-        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
-        .btn { padding:12px 30px; border:none; border-radius:10px; font-size:1em; font-weight:600; cursor:pointer; width:100%; transition:0.3s; }
-        .btn-primary { background:linear-gradient(135deg, #667eea, #764ba2); color:white; }
-        .btn-primary:hover { transform:translateY(-2px); }
-        .btn-success { background:#00b894; color:white; }
-        .btn-warning { background:#fdcb6e; color:#333; }
-        .btn-danger { background:#ff6b6b; color:white; }
-        .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin-top:20px; }
-        .stat-item { background:rgba(255,255,255,0.95); border-radius:15px; padding:20px; text-align:center; }
-        .stat-item .number { font-size:2em; font-weight:bold; color:#667eea; }
-        .stat-item .label { color:#666; font-size:0.9em; margin-top:5px; }
-        .stat-item.success .number { color:#00b894; }
-        .stat-item.danger .number { color:#ff6b6b; }
-        .stat-item.warning .number { color:#fdcb6e; }
-        .mode-selector { display:flex; gap:10px; margin-bottom:15px; }
-        .mode-btn { flex:1; padding:10px; border:2px solid #e1e1e1; border-radius:10px; background:white; cursor:pointer; text-align:center; font-weight:600; }
-        .mode-btn.active { border-color:#667eea; background:#f0f4ff; color:#667eea; }
-        .hidden { display:none; }
-        .log-container { background:#1e1e1e; color:#d4d4d4; border-radius:10px; padding:15px; max-height:300px; overflow-y:auto; font-family:monospace; font-size:0.9em; margin-top:10px; }
-        .log-entry { padding:2px 0; border-bottom:1px solid #2d2d2d; }
-        .log-entry .time { color:#858585; margin-right:10px; }
-        .log-entry .level-info { color:#4fc3f7; }
-        .log-entry .level-success { color:#81c784; }
-        .log-entry .level-warning { color:#ffb74d; }
-        .log-entry .level-error { color:#ff6b6b; }
-        .loading { display:none; text-align:center; padding:20px; }
-        .spinner { border:4px solid #f3f3f3; border-top:4px solid #667eea; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:0 auto; }
-        @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
-        .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.75em; font-weight:600; }
-        .badge-success { background:#00b894; color:white; }
-        .badge-warning { background:#fdcb6e; color:#333; }
-        .badge-info { background:#4fc3f7; color:#333; }
-    </style>
-</head>
-<body>
-<div class="container">
-    <div class="header">
-        <h1>📱 <span>SMS Pro</span></h1>
-        <p>Envío masivo de SMS con Textbelt y Proxies</p>
-        <div style="margin-top:10px;">
-            <span class="badge badge-success">● Activo</span>
-            <span class="badge badge-warning">🔑 {{ api_keys_count }} claves</span>
-            <span class="badge badge-info">🌐 {{ proxies_count }} proxies</span>
-        </div>
-    </div>
-
-    <div class="stats" id="stats">
-        <div class="stat-item"><div class="number" id="total">0</div><div class="label">Total</div></div>
-        <div class="stat-item success"><div class="number" id="enviados">0</div><div class="label">✅ Enviados</div></div>
-        <div class="stat-item danger"><div class="number" id="fallidos">0</div><div class="label">❌ Fallidos</div></div>
-        <div class="stat-item warning"><div class="number" id="blacklist">0</div><div class="label">⏭️ Blacklist</div></div>
-    </div>
-
-    <div class="grid">
-        <div class="card">
-            <h2>✉️ Enviar SMS</h2>
-            <div class="mode-selector">
-                <button class="mode-btn active" onclick="switchMode('lista')" id="mode-lista">📋 Lista</button>
-                <button class="mode-btn" onclick="switchMode('rango')" id="mode-rango">📊 Rango</button>
-            </div>
-            <div id="modo-lista">
-                <div class="form-group">
-                    <label>📱 Números (uno por línea)</label>
-                    <textarea id="numeros-lista" rows="5" placeholder="59642359&#10;55721087">59642359&#10;55721087</textarea>
-                </div>
-            </div>
-            <div id="modo-rango" class="hidden">
-                <div class="form-row">
-                    <div class="form-group"><label>Inicio</label><input type="text" id="rango-inicio" value="59545678"></div>
-                    <div class="form-group"><label>Fin</label><input type="text" id="rango-fin" value="59545700"></div>
-                </div>
-                <div class="form-group"><label>Total</label><input type="text" id="rango-total" readonly style="background:#f5f5f5;"></div>
-            </div>
-            <div class="form-group"><label>📝 Mensaje</label><textarea id="mensaje" rows="2">{{ mensaje }}</textarea></div>
-            <div class="form-row">
-                <div class="form-group"><label>🌍 País</label><input type="text" id="pais" value="{{ pais }}"></div>
-                <div class="form-group"><label>🔄 Intentos</label><input type="number" id="intentos" value="{{ intentos }}" min="1" max="10"></div>
-            </div>
-            <button class="btn btn-primary" onclick="enviar()">🚀 Enviar SMS</button>
-            <div class="loading" id="loading"><div class="spinner"></div><p style="margin-top:10px;color:#666;">Enviando...</p></div>
-        </div>
-
-        <div class="card">
-            <h2>⚙️ Control</h2>
-            <div class="form-group"><label>🔑 Claves API</label><input type="text" id="api-keys" value="{{ api_keys|join(', ') }}"></div>
-            <div class="form-row">
-                <button class="btn btn-success" onclick="actualizarClaves()">💾 Guardar</button>
-                <button class="btn btn-warning" onclick="recargarProxies()">🌐 Recargar</button>
-            </div>
-            <div style="margin-top:15px;"><button class="btn btn-danger" onclick="limpiarBlacklist()">🗑️ Limpiar Blacklist</button></div>
-            <div style="margin-top:20px;">
-                <h3 style="color:#555;font-size:1em;margin-bottom:10px;">📊 Estado</h3>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                    <div style="background:#f5f5f5;padding:10px;border-radius:10px;">
-                        <small style="color:#888;">Proxies</small>
-                        <div style="font-size:1.5em;font-weight:bold;color:#667eea;" id="proxies-activos">{{ proxies_count }}</div>
-                    </div>
-                    <div style="background:#f5f5f5;padding:10px;border-radius:10px;">
-                        <small style="color:#888;">Blacklist</small>
-                        <div style="font-size:1.5em;font-weight:bold;color:#ff6b6b;" id="blacklist-count">{{ blacklist_count }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2>📋 Logs</h2>
-        <div class="log-container" id="logs">
-            <div class="log-entry"><span class="time">[Sistema]</span><span class="level-info">Servidor iniciado</span></div>
-        </div>
-    </div>
-</div>
-
-<script>
-let modoActual = 'lista';
-let enviando = false;
-
-function switchMode(mode) {
-    modoActual = mode;
-    document.getElementById('modo-lista').classList.toggle('hidden', mode !== 'lista');
-    document.getElementById('modo-rango').classList.toggle('hidden', mode !== 'rango');
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('mode-' + mode).classList.add('active');
-    if (mode === 'rango') calcularRango();
-}
-
-function calcularRango() {
-    const inicio = document.getElementById('rango-inicio').value;
-    const fin = document.getElementById('rango-fin').value;
-    if (inicio && fin) {
-        try {
-            const total = parseInt(fin) - parseInt(inicio) + 1;
-            document.getElementById('rango-total').value = total > 0 ? total + ' números' : 'Rango inválido';
-        } catch { document.getElementById('rango-total').value = 'Error'; }
-    }
-}
-
-document.getElementById('rango-inicio').addEventListener('input', calcularRango);
-document.getElementById('rango-fin').addEventListener('input', calcularRango);
-
-function enviar() {
-    if (enviando) { alert('Ya hay un envío en progreso'); return; }
-    let numeros = [];
-    if (modoActual === 'lista') {
-        numeros = document.getElementById('numeros-lista').value.split('\\n').map(n => n.trim()).filter(n => n);
-        if (numeros.length === 0) { alert('Ingresa al menos un número'); return; }
-    } else {
-        const inicio = document.getElementById('rango-inicio').value.trim();
-        const fin = document.getElementById('rango-fin').value.trim();
-        if (!inicio || !fin) { alert('Ingresa inicio y fin'); return; }
-        numeros = ['RANGO:' + inicio + ':' + fin];
-    }
-
-    const data = {
-        modo: modoActual,
-        numeros: numeros,
-        pais: document.getElementById('pais').value || '53',
-        mensaje: document.getElementById('mensaje').value,
-        intentos: parseInt(document.getElementById('intentos').value) || 3
-    };
-
-    enviando = true;
-    document.getElementById('loading').style.display = 'block';
-    document.querySelector('.btn-primary').disabled = true;
-
-    fetch('/api/enviar', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'aceptado') {
-            agregarLog('success', '✅ ' + data.mensaje);
-            document.getElementById('total').textContent = data.numeros || '...';
-        } else {
-            agregarLog('error', '❌ Error: ' + (data.error || 'Desconocido'));
-        }
-    })
-    .catch(e => agregarLog('error', '❌ Error: ' + e.message))
-    .finally(() => {
-        enviando = false;
-        document.getElementById('loading').style.display = 'none';
-        document.querySelector('.btn-primary').disabled = false;
-        actualizarStats();
-    });
-}
-
-function actualizarClaves() {
-    const keys = document.getElementById('api-keys').value.split(',').map(k => k.trim()).filter(k => k);
-    fetch('/api/claves', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({claves: keys})
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'ok') agregarLog('success', '✅ ' + data.mensaje);
-        else agregarLog('error', '❌ Error: ' + data.error);
-    })
-    .catch(e => agregarLog('error', '❌ Error: ' + e.message));
-}
-
-function recargarProxies() {
-    agregarLog('info', '🔄 Recargando proxies...');
-    fetch('/api/proxies/recargar', { method: 'POST' })
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'ok') {
-            agregarLog('success', '✅ ' + data.mensaje);
-            document.getElementById('proxies-activos').textContent = data.proxies || '0';
-        } else agregarLog('error', '❌ Error: ' + data.error);
-    })
-    .catch(e => agregarLog('error', '❌ Error: ' + e.message));
-}
-
-function limpiarBlacklist() {
-    if (!confirm('¿Eliminar toda la blacklist?')) return;
-    fetch('/api/blacklist/limpiar', { method: 'DELETE' })
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'ok') {
-            agregarLog('success', '✅ ' + data.mensaje);
-            document.getElementById('blacklist-count').textContent = '0';
-        } else agregarLog('error', '❌ Error: ' + data.error);
-    })
-    .catch(e => agregarLog('error', '❌ Error: ' + e.message));
-}
-
-function actualizarStats() {
-    fetch('/api/stats')
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'ok') {
-            document.getElementById('total').textContent = data.total || '0';
-            document.getElementById('enviados').textContent = data.enviados || '0';
-            document.getElementById('fallidos').textContent = data.fallidos || '0';
-            document.getElementById('blacklist').textContent = data.blacklist || '0';
-        }
-    })
-    .catch(() => {});
-}
-
-function agregarLog(tipo, mensaje) {
-    const container = document.getElementById('logs');
-    const time = new Date().toLocaleTimeString();
-    const entry = document.createElement('div');
-    entry.className = 'log-entry';
-    entry.innerHTML = '<span class="time">[' + time + ']</span><span class="level-' + tipo + '">' + mensaje + '</span>';
-    container.appendChild(entry);
-    container.scrollTop = container.scrollHeight;
-    while (container.children.length > 100) container.removeChild(container.firstChild);
-}
-
-function pollLogs() {
-    fetch('/api/logs')
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'ok' && data.logs) {
-            data.logs.forEach(log => {
-                const tipo = log.includes('✅') ? 'success' : log.includes('❌') ? 'error' : log.includes('⚠️') ? 'warning' : 'info';
-                agregarLog(tipo, log);
-            });
-        }
-    })
-    .catch(() => {});
-}
-
-setInterval(actualizarStats, 5000);
-setInterval(pollLogs, 3000);
-
-document.addEventListener('DOMContentLoaded', function() {
-    actualizarStats();
-    calcularRango();
-    agregarLog('info', '🚀 Panel iniciado');
-});
-</script>
-</body>
-</html>
-'''
-
-@app.route('/')
-def index():
-    proxy_blacklist = load_json(BLACKLIST_FILE)
-    return render_template_string(
-        HTML_TEMPLATE,
-        pais=PAIS,
-        mensaje=MENSAJE,
-        intentos=INTENTOS_POR_NUMERO,
-        api_keys=API_KEYS,
-        api_keys_count=len(API_KEYS),
-        proxies_count=0,
-        blacklist_count=len(proxy_blacklist)
-    )
-
-@app.route('/api/enviar', methods=['POST'])
-def api_enviar():
+# ============ FUNCIONES TELEGRAM ============
+def send_telegram_message(message):
+    """Envía un mensaje a Telegram"""
     try:
-        data = request.get_json()
-        modo = data.get('modo', 'lista')
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {"chat_id": TELEGRAM_CHAT_ID, "text": message[:4096], "parse_mode": "HTML"}
+        requests.post(url, data=data, timeout=5)
+    except Exception as e:
+        logger.error(f"Error enviando mensaje a Telegram: {e}")
+
+def process_telegram_message(message):
+    """Procesa comandos de Telegram"""
+    if not message:
+        return
+    
+    logger.info(f"📩 Comando Telegram: {message[:100]}")
+    
+    if message.startswith('/start'):
+        send_telegram_message(
+            "🤖 <b>Bot SMS Pro</b>\n\n"
+            "Comandos disponibles:\n"
+            "/enviar <números> - Enviar SMS\n"
+            "/estado - Ver estado del sistema\n"
+            "/proxies - Ver proxies disponibles\n"
+            "/stats - Ver estadísticas\n"
+            "/refresh - Actualizar proxies\n"
+            "/unban <número> - Desbanear número\n"
+            "/help - Este mensaje\n\n"
+            "📱 <b>Formato para enviar:</b>\n"
+            "/enviar 59642359,55721087\n"
+            "/enviar 59642359-59642400 (rango)"
+        )
+        return
+    
+    if message.startswith('/estado'):
+        stats = db_execute("SELECT total, enviados, fallidos FROM stats ORDER BY id DESC LIMIT 1")
+        proxies = db_execute("SELECT COUNT(*) FROM proxies_cache WHERE activo = 1")
+        banned = db_execute("SELECT COUNT(*) FROM numbers_ban")
+        
+        msg = (
+            f"📊 <b>ESTADO DEL SISTEMA</b>\n"
+            f"🔄 Proxies activos: {proxies[0][0] if proxies else 0}\n"
+            f"🚫 Números baneados: {banned[0][0] if banned else 0}\n"
+            f"📱 Último envío: {stats[0][1] if stats else 0} enviados / {stats[0][2] if stats else 0} fallidos\n"
+            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
+        )
+        send_telegram_message(msg)
+        return
+    
+    if message.startswith('/proxies'):
+        proxies = db_execute(
+            "SELECT proxy, veces_usado, fallos FROM proxies_cache WHERE activo = 1 ORDER BY veces_usado DESC LIMIT 10"
+        )
+        if proxies:
+            msg = "🌐 <b>PROXIES ACTIVOS</b>\n\n"
+            for p, usado, fallos in proxies:
+                msg += f"• {p}\n  Usado: {usado} | Fallos: {fallos}\n"
+            send_telegram_message(msg)
+        else:
+            send_telegram_message("⚠️ No hay proxies activos")
+        return
+    
+    if message.startswith('/stats'):
+        stats = db_execute("SELECT fecha, total, enviados, fallidos, blacklist FROM stats ORDER BY id DESC LIMIT 5")
+        if stats:
+            msg = "📊 <b>ÚLTIMOS ENVÍOS</b>\n\n"
+            for fecha, total, enviados, fallidos, blacklist in stats:
+                msg += f"📅 {fecha[:16]}\n  Total: {total} | ✅ {enviados} | ❌ {fallidos} | ⏭️ {blacklist}\n\n"
+            send_telegram_message(msg)
+        else:
+            send_telegram_message("📊 No hay estadísticas disponibles")
+        return
+    
+    if message.startswith('/refresh'):
+        send_telegram_message("🔄 Actualizando proxies...")
+        count = refresh_proxy_cache()
+        send_telegram_message(f"✅ Proxies actualizados: {count} nuevos proxies añadidos")
+        return
+    
+    if message.startswith('/unban'):
+        parts = message.split()
+        if len(parts) > 1:
+            numero = parts[1].strip()
+            db_execute("DELETE FROM numbers_ban WHERE numero = ?", (numero,))
+            send_telegram_message(f"✅ Número {numero} desbaneado")
+        else:
+            send_telegram_message("⚠️ Uso: /unban <número>")
+        return
+    
+    if message.startswith('/enviar'):
+        parts = message.split(maxsplit=1)
+        if len(parts) < 2:
+            send_telegram_message("⚠️ Uso: /enviar <números> (separados por coma o rango)")
+            return
+        
+        numeros_str = parts[1].strip()
         numeros = []
         
-        if modo == 'lista':
-            numeros = data.get('numeros', [])
+        # Procesar números
+        if ',' in numeros_str:
+            # Lista separada por comas
+            for n in numeros_str.split(','):
+                n = n.strip()
+                if n:
+                    numeros.append(n)
+        elif '-' in numeros_str:
+            # Rango
+            try:
+                inicio, fin = numeros_str.split('-')
+                inicio = int(inicio.strip())
+                fin = int(fin.strip())
+                if fin > inicio and fin - inicio <= 10000:
+                    for i in range(inicio, fin + 1):
+                        numeros.append(str(i).zfill(8))
+                else:
+                    send_telegram_message("⚠️ Rango demasiado grande (máx 10000 números)")
+                    return
+            except:
+                send_telegram_message("⚠️ Formato de rango inválido. Ej: /enviar 59540000-59540100")
+                return
         else:
-            rango_data = data.get('numeros', [])
-            if rango_data and len(rango_data) > 0:
-                partes = rango_data[0].split(':')
-                if len(partes) == 3 and partes[0] == 'RANGO':
-                    inicio = partes[1]
-                    fin = partes[2]
-                    try:
-                        inicio_int = int(inicio)
-                        fin_int = int(fin)
-                        for i in range(inicio_int, fin_int + 1):
-                            numeros.append(str(i).zfill(8))
-                        if len(numeros) > 100000:
-                            numeros = numeros[:100000]
-                    except:
-                        pass
+            numeros = [numeros_str]
         
         if not numeros:
-            return jsonify({"error": "No hay números válidos"}), 400
+            send_telegram_message("⚠️ No se encontraron números válidos")
+            return
         
+        if len(numeros) > 500:
+            send_telegram_message("⚠️ Demasiados números (máx 500)")
+            return
+        
+        # Configurar envío
         config = {
-            "pais": data.get('pais', PAIS),
-            "mensaje": data.get('mensaje', MENSAJE),
-            "intentos": data.get('intentos', INTENTOS_POR_NUMERO),
+            "pais": PAIS,
+            "mensaje": MENSAJE_DEFAULT,
+            "intentos": INTENTOS_POR_NUMERO,
             "intervalo": INTERVALO
         }
         
-        thread = threading.Thread(target=ejecutar_envio, args=(numeros, config))
+        # Iniciar envío en hilo separado
+        send_telegram_message(f"🚀 <b>INICIANDO ENVÍO</b>\n📱 {len(numeros)} números\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        
+        def run_send():
+            try:
+                stats = ejecutar_envio(numeros, config)
+                send_telegram_message(
+                    f"✅ <b>ENVÍO COMPLETADO</b>\n"
+                    f"📱 {stats['total']} números\n"
+                    f"✅ {stats['enviados']} enviados\n"
+                    f"❌ {stats['fallidos']} fallidos\n"
+                    f"⏭️ {stats['banned']} baneados"
+                )
+            except Exception as e:
+                send_telegram_message(f"❌ <b>ERROR</b>\n{str(e)}")
+        
+        thread = threading.Thread(target=run_send)
         thread.daemon = True
         thread.start()
-        
-        return jsonify({
-            "status": "aceptado",
-            "mensaje": f"Enviando a {len(numeros)} números",
-            "numeros": len(numeros)
-        }), 202
-        
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return
+    
+    if message.startswith('/help'):
+        send_telegram_message(
+            "📚 <b>AYUDA</b>\n\n"
+            "/start - Ver comandos\n"
+            "/enviar <números> - Enviar SMS\n"
+            "/estado - Estado del sistema\n"
+            "/proxies - Ver proxies\n"
+            "/stats - Estadísticas\n"
+            "/refresh - Actualizar proxies\n"
+            "/unban <número> - Desbanear número\n"
+            "/help - Esta ayuda"
+        )
+        return
 
-@app.route('/api/claves', methods=['POST'])
-def api_claves():
+def telegram_polling():
+    """Polling de mensajes de Telegram"""
+    last_update_id = 0
+    
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+            params = {"offset": last_update_id + 1, "timeout": 30}
+            
+            r = requests.get(url, params=params, timeout=35)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get('ok'):
+                    for update in data.get('result', []):
+                        last_update_id = update['update_id']
+                        if 'message' in update:
+                            msg = update['message']
+                            if 'text' in msg:
+                                process_telegram_message(msg['text'])
+        except Exception as e:
+            logger.error(f"Error en polling de Telegram: {e}")
+            time.sleep(5)
+
+# ============ FLASK APP ============
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    """Endpoint simple"""
+    return "OK", 200
+
+@app.route('/health')
+def health():
+    """Health check"""
+    return jsonify({
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "proxies": db_execute("SELECT COUNT(*) FROM proxies_cache WHERE activo = 1")[0][0],
+        "banned": db_execute("SELECT COUNT(*) FROM numbers_ban")[0][0]
+    })
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Webhook para recibir mensajes de Telegram"""
     try:
         data = request.get_json()
-        nuevas_claves = data.get('claves', [])
-        if not nuevas_claves:
-            return jsonify({"error": "No se enviaron claves"}), 400
+        if data and 'message' in data:
+            msg = data['message']
+            if 'text' in msg:
+                process_telegram_message(msg['text'])
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error(f"Error en webhook: {e}")
+        return jsonify({"ok": False}), 500
+
+# ============ MAIN ============
+def main():
+    """Punto de entrada principal"""
+    try:
+        # Inicializar base de datos
+        init_db()
+        logger.info("🗄️ Base de datos inicializada")
         
-        global API_KEYS
-        API_KEYS = nuevas_claves
-        config = load_json(CONFIG_FILE, {})
-        config['api_keys'] = API_KEYS
-        save_json(CONFIG_FILE, config)
+        # Inicializar caché de proxies
+        refresh_proxy_cache()
         
-        return jsonify({"status": "ok", "mensaje": f"{len(API_KEYS)} claves guardadas"})
+        # Iniciar hilo de polling de Telegram
+        tg_thread = threading.Thread(target=telegram_polling)
+        tg_thread.daemon = True
+        tg_thread.start()
+        logger.info("🤖 Polling de Telegram iniciado")
+        
+        # Enviar mensaje de inicio
+        send_telegram_message(
+            "🤖 <b>BOT SMS PRO</b>\n\n"
+            "✅ Sistema iniciado\n"
+            f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            "Usa /help para ver comandos"
+        )
+        
+        # Iniciar servidor Flask
+        logger.info("🌐 Servidor iniciado en http://0.0.0.0:5000")
+        app.run(host='0.0.0.0', port=5000, debug=False)
+        
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/proxies/recargar', methods=['POST'])
-def api_recargar_proxies():
-    try:
-        proxies = get_proxies(MAX_PROXIES)
-        working = get_working_proxies(proxies)
-        return jsonify({"status": "ok", "mensaje": f"{len(working)} proxies", "proxies": len(working)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/blacklist/limpiar', methods=['DELETE'])
-def api_limpiar_blacklist():
-    try:
-        save_json(BLACKLIST_FILE, {})
-        save_json(NUMBERS_BLACKLIST_FILE, {})
-        return jsonify({"status": "ok", "mensaje": "Blacklist limpiada"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/stats', methods=['GET'])
-def api_stats():
-    try:
-        stats = load_json("sms_stats.json", {})
-        return jsonify({
-            "status": "ok",
-            "total": stats.get('total', 0),
-            "enviados": stats.get('enviados', 0),
-            "fallidos": stats.get('fallidos', 0),
-            "blacklist": stats.get('blacklist', 0)
-        })
-    except:
-        return jsonify({"status": "ok", "total": 0, "enviados": 0, "fallidos": 0, "blacklist": 0})
-
-@app.route('/api/logs', methods=['GET'])
-def api_logs():
-    try:
-        with open(LOG_FILE, 'r') as f:
-            lines = f.readlines()
-            logs = [line.strip() for line in lines[-20:] if line.strip()]
-            return jsonify({"status": "ok", "logs": logs})
-    except:
-        return jsonify({"status": "ok", "logs": []})
+        logger.error(f"❌ Error en main: {e}")
+        send_telegram_message(f"❌ <b>ERROR CRÍTICO</b>\n{str(e)}")
+        sys.exit(1)
 
