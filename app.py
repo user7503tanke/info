@@ -18,13 +18,13 @@ TELEGRAM_CHAT_ID = "7587515668"
 TELEGRAM_ENABLED = True
 
 PAIS = "53"
-MENSAJE = "Cubanos, el momento es ahora. La libertad no se pide, se conquista. Levántense, unan sus voces, tomen las calles. El mundo los respalda. ¡Por una Cuba libre!"
-INTENTOS_POR_NUMERO = 3
-INTERVALO = 2
-MAX_INTENTOS_LIMITE = 3
-MAX_PROXIES = 300
+MENSAJE = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no espera."
+INTENTOS_POR_NUMERO = 2
+INTERVALO = 1
+MAX_INTENTOS_LIMITE = 2
+MAX_PROXIES = 500
 TIMEOUT_PROXY = 3
-TIMEOUT_SMS = 15
+TIMEOUT_SMS = 10
 
 API_KEYS = ["textbelt"]
 
@@ -83,7 +83,6 @@ def random_user_agent():
     uas = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
@@ -92,9 +91,6 @@ def random_user_agent():
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
         "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Brave/120.0.0.0",
-        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 SamsungBrowser/23.0 Chrome/115.0.5790.166 Mobile Safari/537.36"
     ]
     return random.choice(uas)
 
@@ -113,9 +109,9 @@ def send_telegram_result(numero, success, text_id=None, error=None, intento=None
         return
     
     if success:
-        mensaje = f"✅ <b>ENVIADO</b>\n📱 Número: <code>+{PAIS}{numero}</code>\n🆔 ID: <code>{text_id or 'OK'}</code>\n🔄 Intento: {intento}/{total_intentos}\n⏰ {datetime.now().strftime('%H:%M:%S')}"
+        mensaje = f"✅ <b>ENVIADO</b>\n📱 +{PAIS}{numero}\n🆔 {text_id or 'OK'}\n🔄 {intento}/{total_intentos}"
     else:
-        mensaje = f"❌ <b>FALLIDO</b>\n📱 Número: <code>+{PAIS}{numero}</code>\n⚠️ Error: <code>{error or 'Desconocido'}</code>\n🔄 Intento: {intento}/{total_intentos}\n⏰ {datetime.now().strftime('%H:%M:%S')}"
+        mensaje = f"❌ <b>FALLIDO</b>\n📱 +{PAIS}{numero}\n⚠️ {error or 'Desconocido'}\n🔄 {intento}/{total_intentos}"
     
     thread = threading.Thread(target=send_telegram_message, args=(mensaje,))
     thread.daemon = True
@@ -154,7 +150,7 @@ def add_blacklist(item, blacklist, file):
     blacklist[item] = expiry
     save_json(file, blacklist)
 
-def get_proxies(limit=300):
+def get_proxies(limit=500):
     proxies = []
     sources = [
         "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
@@ -165,14 +161,10 @@ def get_proxies(limit=300):
         "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",
         "https://raw.githubusercontent.com/UserR3X/proxy-list/main/http.txt",
         "https://raw.githubusercontent.com/Zaeem20/Free-Proxies/master/http.txt",
-        "https://raw.githubusercontent.com/mertguvencli/http-proxy-list/main/proxy-list/data.txt",
         "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
         "https://raw.githubusercontent.com/sunny9577/proxy-scraper/master/proxies.txt",
         "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_list.txt",
         "https://raw.githubusercontent.com/mmpx222/proxy-list/main/http.txt",
-        "https://raw.githubusercontent.com/iw4p/proxy-list/main/proxies.txt",
-        "https://raw.githubusercontent.com/MuRongPIG/Proxy-Master/main/http.txt",
-        "https://raw.githubusercontent.com/REX9Z/ProxyScrape/main/proxy.txt"
     ]
     
     for url in sources:
@@ -205,7 +197,7 @@ def test_proxy(proxy):
         pass
     return None
 
-def get_working_proxies(proxy_list, max_workers=30):
+def get_working_proxies(proxy_list, max_workers=50):
     if not proxy_list:
         return []
     
@@ -222,6 +214,8 @@ def get_working_proxies(proxy_list, max_workers=30):
             res = future.result()
             if res:
                 working.append(res)
+                if len(working) >= 100:
+                    break
     
     return working
 
@@ -232,7 +226,7 @@ def send_sms(phone, message, api_key, proxy):
     proxies = {"http": proxy, "https": proxy} if proxy else None
     
     try:
-        r = requests.post(url, data=data, headers=headers, proxies=proxies, timeout=15)
+        r = requests.post(url, data=data, headers=headers, proxies=proxies, timeout=10)
         if r.status_code == 200:
             result = r.json()
             if result.get('success'):
@@ -254,23 +248,20 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
     max_intentos = config['intentos']
     
     if is_blacklisted(numero, numbers_blacklist):
-        send_telegram_message(f"⏭️ <b>BLACKLIST</b>\n📱 +{config['pais']}{numero}\n⏰ 24h")
         return False, "blacklist"
     
     intentos_reales = 0
-    intentos_limite = 0
     
     while intentos_reales < max_intentos:
         if not working_proxies:
             logger.warning("⚠️ No hay proxies, recargando...")
-            send_telegram_message("🔄 <b>RECARGANDO PROXIES</b>")
             proxy_list = get_proxies(MAX_PROXIES)
             if proxy_list:
-                working_proxies.extend(get_working_proxies(proxy_list))
-                logger.info(f"✅ Recargados {len(working_proxies)} proxies")
+                new_proxies = get_working_proxies(proxy_list)
+                working_proxies.extend(new_proxies)
+                logger.info(f"✅ Recargados {len(new_proxies)} proxies")
             if not working_proxies:
-                send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies disponibles")
-                time.sleep(10)
+                time.sleep(5)
                 continue
         
         proxy = random.choice(working_proxies)
@@ -285,7 +276,7 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
         
         success, text_id, error = send_sms(phone, message, api_key, proxy)
         
-        if error in ["TIMEOUT", "CONNECTION_ERROR"] or "ConnectionError" in str(error):
+        if error in ["TIMEOUT", "CONNECTION_ERROR"]:
             add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
@@ -293,18 +284,14 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
             continue
         
         if success:
-            send_telegram_result(numero, True, text_id, None, intento_actual, max_intentos)
             add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
             return True, text_id
         
         if error and any(p in error.lower() for p in ["only one", "limit", "quota"]):
-            intentos_limite += 1
             intentos_reales += 1
-            
-            if intentos_limite >= MAX_INTENTOS_LIMITE:
-                send_telegram_message(f"🚫 <b>BLACKLIST</b>\n📱 +{config['pais']}{numero}\n⚠️ {MAX_INTENTOS_LIMITE} intentos\n⏰ 24h")
+            if intentos_reales >= max_intentos:
                 add_blacklist(numero, numbers_blacklist, NUMBERS_BLACKLIST_FILE)
                 return False, "limite_blacklist"
             
@@ -312,29 +299,29 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
             
-            if len(working_proxies) < 5:
+            if len(working_proxies) < 10:
                 proxy_list = get_proxies(MAX_PROXIES)
                 if proxy_list:
-                    working_proxies.extend(get_working_proxies(proxy_list))
+                    new_proxies = get_working_proxies(proxy_list)
+                    working_proxies.extend(new_proxies)
             
             if intentos_reales < max_intentos:
-                time.sleep(config['intervalo'] + random.uniform(0, 1))
+                time.sleep(config['intervalo'] + random.uniform(0, 0.5))
             continue
         
         intentos_reales += 1
-        send_telegram_result(numero, False, None, error, intento_actual, max_intentos)
-        
         add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
         if proxy in working_proxies:
             working_proxies.remove(proxy)
         
-        if len(working_proxies) < 5:
+        if len(working_proxies) < 10:
             proxy_list = get_proxies(MAX_PROXIES)
             if proxy_list:
-                working_proxies.extend(get_working_proxies(proxy_list))
+                new_proxies = get_working_proxies(proxy_list)
+                working_proxies.extend(new_proxies)
         
         if intentos_reales < max_intentos:
-            time.sleep(config['intervalo'] + random.uniform(0, 1))
+            time.sleep(config['intervalo'] + random.uniform(0, 0.5))
     
     return False, "agotado"
 
@@ -344,6 +331,7 @@ def ejecutar_envio(numeros, config):
         logger.info(f"🚀 INICIANDO ENVÍO: {total} números")
         send_telegram_message(f"🚀 <b>INICIANDO</b>\n📱 Total: {total}\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         
+        # Obtener proxies iniciales
         proxy_list = get_proxies(MAX_PROXIES)
         working_proxies = get_working_proxies(proxy_list) if proxy_list else []
         
@@ -358,7 +346,8 @@ def ejecutar_envio(numeros, config):
         proxy_blacklist = load_json(BLACKLIST_FILE)
         numbers_blacklist = load_json(NUMBERS_BLACKLIST_FILE)
         
-        stats = {"total": total, "enviados": 0, "fallidos": 0, "blacklist": 0, "limite_blacklist": 0}
+        stats = {"total": total, "enviados": 0, "fallidos": 0, "blacklist": 0}
+        sin_proxies = 0
         
         for i, numero in enumerate(numeros, 1):
             logger.info(f"▶ [{i}/{total}] +{config['pais']} {numero}")
@@ -367,27 +356,33 @@ def ejecutar_envio(numeros, config):
             
             if success:
                 stats['enviados'] += 1
-            elif result == "blacklist":
-                stats['blacklist'] += 1
-            elif result == "limite_blacklist":
-                stats['limite_blacklist'] += 1
+                send_telegram_result(numero, True, result, None, 1, config['intentos'])
+            elif result == "blacklist" or result == "limite_blacklist":
                 stats['blacklist'] += 1
             else:
                 stats['fallidos'] += 1
             
-            logger.info(f"📊 Progreso: {i}/{total} | ✅ {stats['enviados']} | ❌ {stats['fallidos']} | 🔌 {len(working_proxies)}")
+            # Mostrar progreso cada 5 números
+            if i % 5 == 0:
+                logger.info(f"📊 Progreso: {i}/{total} | ✅ {stats['enviados']} | ❌ {stats['fallidos']} | 🔌 {len(working_proxies)}")
             
-            if len(working_proxies) < 3:
+            # Si no hay proxies, esperar y recargar
+            if not working_proxies:
+                sin_proxies += 1
+                if sin_proxies > 3:
+                    logger.error("❌ Sin proxies después de 3 intentos, deteniendo")
+                    send_telegram_message("❌ <b>DETENIDO</b>\nSin proxies disponibles")
+                    break
                 logger.info("🔄 Recargando proxies...")
                 proxy_list = get_proxies(MAX_PROXIES)
                 if proxy_list:
-                    new_proxies = get_working_proxies(proxy_list)
-                    working_proxies.extend(new_proxies)
-                    logger.info(f"✅ Recargados {len(new_proxies)} proxies")
-                    send_telegram_message(f"🔄 <b>PROXIES</b>\n+{len(new_proxies)} nuevos")
+                    working_proxies = get_working_proxies(proxy_list)
+                    logger.info(f"✅ Recargados {len(working_proxies)} proxies")
+                time.sleep(5)
+                continue
             
             if i < total:
-                time.sleep(config['intervalo'] * 0.5 + random.uniform(0, 2))
+                time.sleep(config['intervalo'] * 0.5 + random.uniform(0, 1))
         
         resumen = (
             f"📊 <b>RESUMEN</b>\n"
@@ -398,8 +393,6 @@ def ejecutar_envio(numeros, config):
             f"🔌 Proxies: {len(working_proxies)}\n"
             f"⏰ {datetime.now().strftime('%H:%M:%S')}"
         )
-        if stats['limite_blacklist'] > 0:
-            resumen += f"\n🚫 Blacklist límite: {stats['limite_blacklist']}"
         
         logger.info(resumen)
         send_telegram_message(resumen)
@@ -424,12 +417,12 @@ HTML_TEMPLATE = '''
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height:100vh; padding:20px; }
         .container { max-width:1200px; margin:0 auto; }
-        .header { background:rgba(255,255,255,0.95); border-radius:20px; padding:30px; margin-bottom:30px; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.1); }
+        .header { background:rgba(255,255,255,0.95); border-radius:20px; padding:30px; margin-bottom:30px; text-align:center; }
         .header h1 { color:#333; font-size:2.5em; }
         .header h1 span { background:linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
         .grid { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-bottom:30px; }
         @media (max-width:768px) { .grid { grid-template-columns:1fr; } }
-        .card { background:rgba(255,255,255,0.95); border-radius:20px; padding:25px; box-shadow:0 10px 40px rgba(0,0,0,0.1); }
+        .card { background:rgba(255,255,255,0.95); border-radius:20px; padding:25px; }
         .card h2 { color:#333; margin-bottom:20px; border-bottom:3px solid #667eea; padding-bottom:10px; }
         .form-group { margin-bottom:15px; }
         .form-group label { display:block; color:#555; font-weight:600; margin-bottom:5px; font-size:0.9em; }
@@ -439,24 +432,20 @@ HTML_TEMPLATE = '''
         .form-row { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
         .btn { padding:12px 30px; border:none; border-radius:10px; font-size:1em; font-weight:600; cursor:pointer; width:100%; transition:0.3s; }
         .btn-primary { background:linear-gradient(135deg, #667eea, #764ba2); color:white; }
-        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 5px 20px rgba(102,126,234,0.4); }
+        .btn-primary:hover { transform:translateY(-2px); }
         .btn-success { background:#00b894; color:white; }
-        .btn-success:hover { transform:translateY(-2px); }
         .btn-warning { background:#fdcb6e; color:#333; }
-        .btn-warning:hover { transform:translateY(-2px); }
         .btn-danger { background:#ff6b6b; color:white; }
-        .btn-danger:hover { transform:translateY(-2px); }
         .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin-top:20px; }
-        .stat-item { background:rgba(255,255,255,0.95); border-radius:15px; padding:20px; text-align:center; box-shadow:0 5px 20px rgba(0,0,0,0.1); }
+        .stat-item { background:rgba(255,255,255,0.95); border-radius:15px; padding:20px; text-align:center; }
         .stat-item .number { font-size:2em; font-weight:bold; color:#667eea; }
         .stat-item .label { color:#666; font-size:0.9em; margin-top:5px; }
         .stat-item.success .number { color:#00b894; }
         .stat-item.danger .number { color:#ff6b6b; }
         .stat-item.warning .number { color:#fdcb6e; }
         .mode-selector { display:flex; gap:10px; margin-bottom:15px; }
-        .mode-btn { flex:1; padding:10px; border:2px solid #e1e1e1; border-radius:10px; background:white; cursor:pointer; text-align:center; font-weight:600; transition:0.3s; }
+        .mode-btn { flex:1; padding:10px; border:2px solid #e1e1e1; border-radius:10px; background:white; cursor:pointer; text-align:center; font-weight:600; }
         .mode-btn.active { border-color:#667eea; background:#f0f4ff; color:#667eea; }
-        .mode-btn:hover { border-color:#667eea; }
         .hidden { display:none; }
         .log-container { background:#1e1e1e; color:#d4d4d4; border-radius:10px; padding:15px; max-height:300px; overflow-y:auto; font-family:monospace; font-size:0.9em; margin-top:10px; }
         .log-entry { padding:2px 0; border-bottom:1px solid #2d2d2d; }
@@ -845,3 +834,4 @@ def api_logs():
             return jsonify({"status": "ok", "logs": logs})
     except:
         return jsonify({"status": "ok", "logs": []})
+
