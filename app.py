@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = "7587515668"
 TELEGRAM_ENABLED = True
 
 PAIS = "53"
-MENSAJE = "Cubanos, el momento es ahora. La libertad no se pide, se conquista. Levántense, unan sus voces, tomen las calles. El mundo los respalda. ¡Por una Cuba libre!"
+MENSAJE = "Ya basta de sombra. Merecemos sol. Despierten, que el futuro no espera."
 INTENTOS_POR_NUMERO = 3
 INTERVALO = 2
 MAX_INTENTOS_LIMITE = 3
@@ -83,158 +83,31 @@ def random_user_agent():
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.5938.132 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/116.0.5845.188 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0.5790.110 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/114.0.5735.199 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/113.0.5672.127 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/112.0.5615.138 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/111.0.5563.111 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/110.0.5481.178 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/109.0.5414.120 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/108.0.5359.125 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/107.0.5304.110 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/106.0.5249.119 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/105.0.5195.127 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/104.0.5112.102 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/103.0.5060.114 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/102.0.5005.63 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/101.0.4951.54 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/100.0.4896.127 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/117.0.5938.132 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/116.0.5845.188 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/115.0.5790.110 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/114.0.5735.199 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/113.0.5672.127 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/112.0.5615.138 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/111.0.5563.111 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/110.0.5481.178 Safari/537.36",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/117.0.5938.132 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/116.0.5845.188 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/115.0.5790.110 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/114.0.5735.199 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/113.0.5672.127 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/112.0.5615.138 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/111.0.5563.111 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/110.0.5481.178 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:119.0) Gecko/20100101 Firefox/119.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:118.0) Gecko/20100101 Firefox/118.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:117.0) Gecko/20100101 Firefox/117.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:116.0) Gecko/20100101 Firefox/116.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:114.0) Gecko/20100101 Firefox/114.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:113.0) Gecko/20100101 Firefox/113.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:112.0) Gecko/20100101 Firefox/112.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:111.0) Gecko/20100101 Firefox/111.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:110.0) Gecko/20100101 Firefox/110.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/109.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:119.0) Gecko/20100101 Firefox/119.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:118.0) Gecko/20100101 Firefox/118.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:117.0) Gecko/20100101 Firefox/117.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:116.0) Gecko/20100101 Firefox/116.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:115.0) Gecko/20100101 Firefox/115.0",
         "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
-        "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
-        "Mozilla/5.0 (X11; Linux x86_64; rv:119.0) Gecko/20100101 Firefox/119.0",
-        "Mozilla/5.0 (X11; Linux x86_64; rv:118.0) Gecko/20100101 Firefox/118.0",
-        "Mozilla/5.0 (X11; Linux x86_64; rv:117.0) Gecko/20100101 Firefox/117.0",
-        "Mozilla/5.0 (X11; Linux x86_64; rv:116.0) Gecko/20100101 Firefox/116.0",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.1 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.6 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.5 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.4 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.3 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.2 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.1 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.0 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.6 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.5 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.4 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.3 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.2 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.1 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.0 Safari/605.1.15",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/14.0 Safari/605.1.15",
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
         "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 Version/16.6 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 Version/16.5 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 Version/16.4 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 Version/16.3 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 Version/16.2 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1 like Mac OS X) AppleWebKit/605.1.15 Version/16.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Version/16.0 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_6 like Mac OS X) AppleWebKit/605.1.15 Version/15.6 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 Version/15.5 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_4 like Mac OS X) AppleWebKit/605.1.15 Version/15.4 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_3 like Mac OS X) AppleWebKit/605.1.15 Version/15.3 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like Mac OS X) AppleWebKit/605.1.15 Version/15.2 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_1 like Mac OS X) AppleWebKit/605.1.15 Version/15.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 Version/15.0 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 Version/14.0 Mobile/15E148 Safari/604.1",
         "Mozilla/5.0 (iPad; CPU OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 Version/16.6 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 16_5 like Mac OS X) AppleWebKit/605.1.15 Version/16.5 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 16_4 like Mac OS X) AppleWebKit/605.1.15 Version/16.4 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 16_3 like Mac OS X) AppleWebKit/605.1.15 Version/16.3 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 16_2 like Mac OS X) AppleWebKit/605.1.15 Version/16.2 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 16_1 like Mac OS X) AppleWebKit/605.1.15 Version/16.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Version/16.0 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 15_6 like Mac OS X) AppleWebKit/605.1.15 Version/15.6 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 15_5 like Mac OS X) AppleWebKit/605.1.15 Version/15.5 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 15_4 like Mac OS X) AppleWebKit/605.1.15 Version/15.4 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 15_3 like Mac OS X) AppleWebKit/605.1.15 Version/15.3 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 15_2 like Mac OS X) AppleWebKit/605.1.15 Version/15.2 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 15_1 like Mac OS X) AppleWebKit/605.1.15 Version/15.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15 Version/15.0 Mobile/15E148 Safari/604.1",
         "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
         "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 Chrome/118.0.5993.88 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 12; Pixel 5) AppleWebKit/537.36 Chrome/118.0.5993.88 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 Chrome/117.0.5938.132 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 11; Pixel 4) AppleWebKit/537.36 Chrome/117.0.5938.132 Mobile Safari/537.36",
         "Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0",
-        "Mozilla/5.0 (Android 14; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0",
         "Mozilla/5.0 (Android 13; Mobile; rv:119.0) Gecko/119.0 Firefox/119.0",
-        "Mozilla/5.0 (Android 13; Mobile; rv:118.0) Gecko/118.0 Firefox/118.0",
-        "Mozilla/5.0 (Android 12; Mobile; rv:117.0) Gecko/117.0 Firefox/117.0",
-        "Mozilla/5.0 (Android 12; Mobile; rv:116.0) Gecko/116.0 Firefox/116.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.72",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.0.0 Safari/537.36 Edg/118.0.2088.76",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.47",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.81",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.72",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 OPR/105.0.0.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.0.0 Safari/537.36 OPR/104.0.0.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Brave/120.0.0.0",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Brave/119.0.0.0",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Brave/120.0.0.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Vivaldi/6.4.3160.47",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
         "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 SamsungBrowser/23.0 Chrome/115.0.5790.166 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 SamsungBrowser/22.0 Chrome/114.0.5735.196 Mobile Safari/537.36",
         "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 SamsungBrowser/21.0 Chrome/113.0.5672.162 Mobile Safari/537.36"
     ]
     return random.choice(uas)
@@ -416,7 +289,7 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
     
     while intentos_reales < max_intentos:
         if not working_proxies:
-            send_telegram_message("❌ <b>ERROR CRÍTICO</b>\nNo hay proxies disponibles")
+            send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies disponibles")
             return False, "sin_proxies"
         
         proxy = random.choice(working_proxies)
@@ -432,12 +305,7 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
         success, text_id, error = send_sms(phone, message, api_key, proxy)
         
         if error in ["TIMEOUT", "CONNECTION_ERROR"] or "ConnectionError" in str(error):
-            mensaje = (
-                f"⚠️ <b>ERROR DE CONEXIÓN</b>\n"
-                f"📱 Número: <code>+{config['pais']}{numero}</code>\n"
-                f"🔌 Proxy: <code>{proxy}</code>\n"
-                f"🔄 Reintentando... (no cuenta como intento)"
-            )
+            mensaje = f"⚠️ <b>ERROR CONEXIÓN</b>\n📱 +{config['pais']}{numero}\n🔄 Reintentando..."
             send_telegram_message(mensaje)
             
             add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
@@ -465,19 +333,8 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
             intentos_limite += 1
             intentos_reales += 1
             
-            mensaje = (
-                f"⚠️ <b>LÍMITE ALCANZADO</b>\n"
-                f"📱 Número: <code>+{config['pais']}{numero}</code>\n"
-                f"📊 Intento: {intentos_limite}/{MAX_INTENTOS_LIMITE}"
-            )
-            send_telegram_message(mensaje)
-            
             if intentos_limite >= MAX_INTENTOS_LIMITE:
-                mensaje = (
-                    f"🚫 <b>BLACKLIST POR LÍMITE</b>\n"
-                    f"📱 Número: <code>+{config['pais']}{numero}</code>\n"
-                    f"⚠️ {MAX_INTENTOS_LIMITE} intentos alcanzados\n⏰ Bloqueado 24h"
-                )
+                mensaje = f"🚫 <b>BLACKLIST</b>\n📱 +{config['pais']}{numero}\n⚠️ {MAX_INTENTOS_LIMITE} intentos\n⏰ Bloqueado 24h"
                 send_telegram_message(mensaje)
                 add_blacklist(numero, numbers_blacklist, NUMBERS_BLACKLIST_FILE)
                 return False, "limite_blacklist"
@@ -506,38 +363,30 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
         if intentos_reales < max_intentos:
             time.sleep(config['intervalo'] + random.uniform(0, 1))
     
-    mensaje = f"❌ <b>AGOTADO</b>\n📱 Número: <code>+{config['pais']}{numero}</code>\n⚠️ {max_intentos} intentos fallidos"
-    send_telegram_message(mensaje)
     return False, "agotado"
 
 def ejecutar_envio(numeros, config):
     try:
         logger.info(f"🚀 INICIANDO ENVÍO: {len(numeros)} números")
         
-        mensaje_inicio = (
-            f"🚀 <b>INICIANDO ENVÍO MASIVO</b>\n"
-            f"📱 Total: {len(numeros)}\n"
-            f"🔄 Intentos: {config['intentos']}\n"
-            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
-        )
-        send_telegram_message(mensaje_inicio)
+        send_telegram_message(f"🚀 <b>INICIANDO</b>\n📱 Total: {len(numeros)}\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         
         proxy_list = get_proxies(MAX_PROXIES)
         
         if not proxy_list:
             logger.error("❌ No se obtuvieron proxies")
-            send_telegram_message("❌ <b>ERROR CRÍTICO</b>\nNo se obtuvieron proxies")
+            send_telegram_message("❌ <b>ERROR</b>\nNo se obtuvieron proxies")
             return {"total": len(numeros), "enviados": 0, "fallidos": len(numeros), "blacklist": 0}
         
         working_proxies = get_working_proxies(proxy_list)
         
         if not working_proxies:
             logger.error("❌ No hay proxies funcionales")
-            send_telegram_message("❌ <b>ERROR CRÍTICO</b>\nNo hay proxies funcionales")
+            send_telegram_message("❌ <b>ERROR</b>\nNo hay proxies funcionales")
             return {"total": len(numeros), "enviados": 0, "fallidos": len(numeros), "blacklist": 0}
         
         logger.info(f"✅ {len(working_proxies)} proxies funcionales")
-        send_telegram_message(f"✅ <b>PROXIES LISTOS</b>\n{len(working_proxies)} proxies")
+        send_telegram_message(f"✅ <b>PROXIES</b>\n{len(working_proxies)} funcionales")
         
         proxy_blacklist = load_json(BLACKLIST_FILE)
         numbers_blacklist = load_json(NUMBERS_BLACKLIST_FILE)
@@ -565,10 +414,8 @@ def ejecutar_envio(numeros, config):
             if i % 10 == 0:
                 resumen = (
                     f"📊 <b>PROGRESO</b> [{i}/{stats['total']}]\n"
-                    f"✅ Enviados: {stats['enviados']}\n"
-                    f"❌ Fallidos: {stats['fallidos']}\n"
-                    f"⏭️ Blacklist: {stats['blacklist']}\n"
-                    f"🔌 Proxies: {len(working_proxies)}"
+                    f"✅ {stats['enviados']} | ❌ {stats['fallidos']}\n"
+                    f"⏭️ {stats['blacklist']} | 🔌 {len(working_proxies)}"
                 )
                 send_telegram_message(resumen)
             
@@ -582,7 +429,7 @@ def ejecutar_envio(numeros, config):
                 time.sleep(config['intervalo'] * 0.5 + random.uniform(0, 2))
         
         resumen = (
-            f"📊 <b>RESUMEN FINAL</b>\n"
+            f"📊 <b>RESUMEN</b>\n"
             f"📱 Total: {stats['total']}\n"
             f"✅ Enviados: {stats['enviados']}\n"
             f"❌ Fallidos: {stats['fallidos']}\n"
@@ -629,7 +476,7 @@ HTML_TEMPLATE = '''
         .form-group input:focus, .form-group textarea:focus { outline:none; border-color:#667eea; }
         .form-group textarea { min-height:80px; resize:vertical; }
         .form-row { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
-        .btn { padding:12px 30px; border:none; border-radius:10px; font-size:1em; font-weight:600; cursor:pointer; width:100%; }
+        .btn { padding:12px 30px; border:none; border-radius:10px; font-size:1em; font-weight:600; cursor:pointer; width:100%; transition:0.3s; }
         .btn-primary { background:linear-gradient(135deg, #667eea, #764ba2); color:white; }
         .btn-primary:hover { transform:translateY(-2px); box-shadow:0 5px 20px rgba(102,126,234,0.4); }
         .btn-success { background:#00b894; color:white; }
@@ -646,7 +493,7 @@ HTML_TEMPLATE = '''
         .stat-item.danger .number { color:#ff6b6b; }
         .stat-item.warning .number { color:#fdcb6e; }
         .mode-selector { display:flex; gap:10px; margin-bottom:15px; }
-        .mode-btn { flex:1; padding:10px; border:2px solid #e1e1e1; border-radius:10px; background:white; cursor:pointer; text-align:center; font-weight:600; }
+        .mode-btn { flex:1; padding:10px; border:2px solid #e1e1e1; border-radius:10px; background:white; cursor:pointer; text-align:center; font-weight:600; transition:0.3s; }
         .mode-btn.active { border-color:#667eea; background:#f0f4ff; color:#667eea; }
         .mode-btn:hover { border-color:#667eea; }
         .hidden { display:none; }
@@ -777,7 +624,7 @@ function enviar() {
     if (enviando) { alert('Ya hay un envío en progreso'); return; }
     let numeros = [];
     if (modoActual === 'lista') {
-        numeros = document.getElementById('numeros-lista').value.split('\n').map(n => n.trim()).filter(n => n);
+        numeros = document.getElementById('numeros-lista').value.split('\\n').map(n => n.trim()).filter(n => n);
         if (numeros.length === 0) { alert('Ingresa al menos un número'); return; }
     } else {
         const inicio = document.getElementById('rango-inicio').value.trim();
