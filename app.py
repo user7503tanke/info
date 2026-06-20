@@ -10,28 +10,22 @@ import threading
 import logging
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from flask import Flask, request, jsonify, render_template_string, send_file
+from flask import Flask, request, jsonify, render_template_string
 import requests
 
-# ==================== CONFIGURACIÓN TELEGRAM ====================
 TELEGRAM_BOT_TOKEN = "7920655514:AAEH1vWk2hOkNfN_eREpe6DrPBz1mZNAQYw"
 TELEGRAM_CHAT_ID = "7587515668"
 TELEGRAM_ENABLED = True
 
-# ==================== CONFIGURACIÓN PRINCIPAL ====================
 PAIS = "53"
-
-# Mensaje optimizado (153 caracteres - dentro del límite de 160)
 MENSAJE = "Cubanos, el momento es ahora. La libertad no se pide, se conquista. Levántense, unan sus voces, tomen las calles. El mundo los respalda. ¡Por una Cuba libre!"
-
 INTENTOS_POR_NUMERO = 3
 INTERVALO = 2
 MAX_INTENTOS_LIMITE = 3
-MAX_PROXIES = 100
+MAX_PROXIES = 200
 
 API_KEYS = ["textbelt"]
 
-# Archivos
 BLACKLIST_FILE = "proxy_blacklist.json"
 NUMBERS_BLACKLIST_FILE = "numbers_blacklist.json"
 CONFIG_FILE = "sms_config.json"
@@ -40,7 +34,6 @@ LOG_FILE = "sms_pro.log"
 app = Flask(__name__)
 app.secret_key = 'tu_clave_secreta_cambia_esto'
 
-# ==================== LOGGING ====================
 class TelegramHandler(logging.Handler):
     def __init__(self, bot_token, chat_id):
         super().__init__()
@@ -84,7 +77,168 @@ def setup_logging():
 
 logger = setup_logging()
 
-# ==================== UTILIDADES ====================
+def random_user_agent():
+    uas = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.5938.132 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/116.0.5845.188 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0.5790.110 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/114.0.5735.199 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/113.0.5672.127 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/112.0.5615.138 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/111.0.5563.111 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/110.0.5481.178 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/109.0.5414.120 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/108.0.5359.125 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/107.0.5304.110 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/106.0.5249.119 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/105.0.5195.127 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/104.0.5112.102 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/103.0.5060.114 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/102.0.5005.63 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/101.0.4951.54 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/100.0.4896.127 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/117.0.5938.132 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/116.0.5845.188 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/115.0.5790.110 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/114.0.5735.199 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/113.0.5672.127 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/112.0.5615.138 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/111.0.5563.111 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/110.0.5481.178 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/118.0.5993.88 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/117.0.5938.132 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/116.0.5845.188 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/115.0.5790.110 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/114.0.5735.199 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/113.0.5672.127 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/112.0.5615.138 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/111.0.5563.111 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/110.0.5481.178 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:119.0) Gecko/20100101 Firefox/119.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:118.0) Gecko/20100101 Firefox/118.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:117.0) Gecko/20100101 Firefox/117.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:116.0) Gecko/20100101 Firefox/116.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:114.0) Gecko/20100101 Firefox/114.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:113.0) Gecko/20100101 Firefox/113.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:112.0) Gecko/20100101 Firefox/112.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:111.0) Gecko/20100101 Firefox/111.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:110.0) Gecko/20100101 Firefox/110.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/109.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:119.0) Gecko/20100101 Firefox/119.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:118.0) Gecko/20100101 Firefox/118.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:117.0) Gecko/20100101 Firefox/117.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:116.0) Gecko/20100101 Firefox/116.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:115.0) Gecko/20100101 Firefox/115.0",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:119.0) Gecko/20100101 Firefox/119.0",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:118.0) Gecko/20100101 Firefox/118.0",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:117.0) Gecko/20100101 Firefox/117.0",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:116.0) Gecko/20100101 Firefox/116.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.1 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.6 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.5 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.4 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.3 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.2 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.1 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/16.0 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.6 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.5 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.4 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.3 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.2 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.1 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.0 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/14.0 Safari/605.1.15",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 Version/16.6 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 Version/16.5 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 Version/16.4 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 Version/16.3 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 Version/16.2 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1 like Mac OS X) AppleWebKit/605.1.15 Version/16.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Version/16.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_6 like Mac OS X) AppleWebKit/605.1.15 Version/15.6 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 Version/15.5 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_4 like Mac OS X) AppleWebKit/605.1.15 Version/15.4 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_3 like Mac OS X) AppleWebKit/605.1.15 Version/15.3 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like Mac OS X) AppleWebKit/605.1.15 Version/15.2 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_1 like Mac OS X) AppleWebKit/605.1.15 Version/15.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 Version/15.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 Version/14.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 Version/16.6 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 16_5 like Mac OS X) AppleWebKit/605.1.15 Version/16.5 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 16_4 like Mac OS X) AppleWebKit/605.1.15 Version/16.4 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 16_3 like Mac OS X) AppleWebKit/605.1.15 Version/16.3 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 16_2 like Mac OS X) AppleWebKit/605.1.15 Version/16.2 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 16_1 like Mac OS X) AppleWebKit/605.1.15 Version/16.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Version/16.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 15_6 like Mac OS X) AppleWebKit/605.1.15 Version/15.6 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 15_5 like Mac OS X) AppleWebKit/605.1.15 Version/15.5 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 15_4 like Mac OS X) AppleWebKit/605.1.15 Version/15.4 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 15_3 like Mac OS X) AppleWebKit/605.1.15 Version/15.3 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 15_2 like Mac OS X) AppleWebKit/605.1.15 Version/15.2 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 15_1 like Mac OS X) AppleWebKit/605.1.15 Version/15.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15 Version/15.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 Chrome/119.0.6045.163 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 Chrome/118.0.5993.88 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 12; Pixel 5) AppleWebKit/537.36 Chrome/118.0.5993.88 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 Chrome/117.0.5938.132 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 11; Pixel 4) AppleWebKit/537.36 Chrome/117.0.5938.132 Mobile Safari/537.36",
+        "Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0",
+        "Mozilla/5.0 (Android 14; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0",
+        "Mozilla/5.0 (Android 13; Mobile; rv:119.0) Gecko/119.0 Firefox/119.0",
+        "Mozilla/5.0 (Android 13; Mobile; rv:118.0) Gecko/118.0 Firefox/118.0",
+        "Mozilla/5.0 (Android 12; Mobile; rv:117.0) Gecko/117.0 Firefox/117.0",
+        "Mozilla/5.0 (Android 12; Mobile; rv:116.0) Gecko/116.0 Firefox/116.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.72",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.0.0 Safari/537.36 Edg/118.0.2088.76",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.47",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.81",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.72",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 OPR/105.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.0.0 Safari/537.36 OPR/104.0.0.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Brave/120.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Brave/119.0.0.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Brave/120.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36 Vivaldi/6.4.3160.47",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
+        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 SamsungBrowser/23.0 Chrome/115.0.5790.166 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 SamsungBrowser/22.0 Chrome/114.0.5735.196 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 SamsungBrowser/21.0 Chrome/113.0.5672.162 Mobile Safari/537.36"
+    ]
+    return random.choice(uas)
+
 def send_telegram_message(message):
     if not TELEGRAM_ENABLED:
         return
@@ -131,19 +285,8 @@ def save_json(file, data):
     with open(file, 'w') as f:
         json.dump(data, f, indent=2)
 
-def random_user_agent():
-    uas = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.6045.160 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1) AppleWebKit/605.1.15 Version/17.1 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120.0.6099.230 Mobile Safari/537.36",
-    ]
-    return random.choice(uas)
-
 def is_blacklisted(item, blacklist):
-    if not item or item in [None, "directo"]:
+    if not item:
         return False
     if item in blacklist:
         try:
@@ -158,29 +301,43 @@ def is_blacklisted(item, blacklist):
     return False
 
 def add_blacklist(item, blacklist, file):
-    if not item or item in [None, "directo"]:
+    if not item:
         return
     expiry = (datetime.now() + timedelta(hours=24)).isoformat()
     blacklist[item] = expiry
     save_json(file, blacklist)
 
-# ==================== PROXIES ====================
-def get_proxies(limit=100):
+def get_proxies(limit=200):
     proxies = []
     sources = [
         "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=5000&country=all&ssl=all&anonymity=all",
         "https://www.proxy-list.download/api/v1/get?type=http",
         "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
+        "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
+        "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
+        "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",
+        "https://raw.githubusercontent.com/UserR3X/proxy-list/main/http.txt",
+        "https://raw.githubusercontent.com/Zaeem20/Free-Proxies/master/http.txt",
+        "https://raw.githubusercontent.com/mertguvencli/http-proxy-list/main/proxy-list/data.txt",
+        "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
+        "https://raw.githubusercontent.com/sunny9577/proxy-scraper/master/proxies.txt",
+        "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_list.txt",
+        "https://raw.githubusercontent.com/mmpx222/proxy-list/main/http.txt",
+        "https://raw.githubusercontent.com/iw4p/proxy-list/main/proxies.txt",
+        "https://raw.githubusercontent.com/MuRongPIG/Proxy-Master/main/http.txt",
+        "https://raw.githubusercontent.com/REX9Z/ProxyScrape/main/proxy.txt"
     ]
     
     for url in sources:
         try:
-            r = requests.get(url, timeout=10)
+            r = requests.get(url, timeout=15)
             if r.status_code == 200:
                 for line in r.text.splitlines():
                     line = line.strip()
                     if line and ':' in line and not line.startswith('#'):
-                        proxies.append(f"http://{line}")
+                        proxy = line.replace('http://', '').replace('https://', '')
+                        if proxy.count(':') == 1:
+                            proxies.append(f"http://{proxy}")
                 if len(proxies) >= limit:
                     break
         except:
@@ -194,16 +351,14 @@ def get_proxies(limit=100):
 
 def test_proxy(proxy):
     try:
-        r = requests.get('https://www.google.com', 
-                        proxies={"http": proxy, "https": proxy}, 
-                        timeout=3)
+        r = requests.get('https://www.google.com', proxies={"http": proxy, "https": proxy}, timeout=5)
         if r.status_code == 200:
             return proxy
     except:
         pass
     return None
 
-def get_working_proxies(proxy_list, max_workers=20):
+def get_working_proxies(proxy_list, max_workers=30):
     if not proxy_list:
         return []
     
@@ -223,8 +378,7 @@ def get_working_proxies(proxy_list, max_workers=20):
     
     return working
 
-# ==================== SMS ====================
-def send_sms(phone, message, api_key, proxy=None):
+def send_sms(phone, message, api_key, proxy):
     url = "https://textbelt.com/text"
     data = {"phone": phone, "message": message, "key": api_key}
     headers = {"User-Agent": random_user_agent()}
@@ -247,7 +401,7 @@ def send_sms(phone, message, api_key, proxy=None):
     except Exception as e:
         return False, None, str(e)[:50]
 
-def process_number(numero, config, working_proxies, proxy_blacklist, numbers_blacklist, stats):
+def process_number(numero, config, working_proxies, proxy_blacklist, numbers_blacklist):
     phone = '+' + config['pais'] + numero
     message = config['mensaje']
     max_intentos = config['intentos']
@@ -261,63 +415,60 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
     intentos_limite = 0
     
     while intentos_reales < max_intentos:
-        proxy = random.choice(working_proxies) if working_proxies else None
-        api_key = random.choice(API_KEYS)
+        if not working_proxies:
+            send_telegram_message("❌ <b>ERROR CRÍTICO</b>\nNo hay proxies disponibles")
+            return False, "sin_proxies"
+        
+        proxy = random.choice(working_proxies)
         
         if proxy and is_blacklisted(proxy, proxy_blacklist):
             if proxy in working_proxies:
                 working_proxies.remove(proxy)
             continue
         
+        api_key = random.choice(API_KEYS)
         intento_actual = intentos_reales + 1
         
         success, text_id, error = send_sms(phone, message, api_key, proxy)
         
         if error in ["TIMEOUT", "CONNECTION_ERROR"] or "ConnectionError" in str(error):
-            logger.warning(f"⚠️ Error conexión {numero}: {error} (no cuenta)")
-            
             mensaje = (
                 f"⚠️ <b>ERROR DE CONEXIÓN</b>\n"
                 f"📱 Número: <code>+{config['pais']}{numero}</code>\n"
-                f"🔌 Error: <code>{error}</code>\n"
+                f"🔌 Proxy: <code>{proxy}</code>\n"
                 f"🔄 Reintentando... (no cuenta como intento)"
             )
             send_telegram_message(mensaje)
             
-            if proxy:
-                add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
-                if proxy in working_proxies:
-                    working_proxies.remove(proxy)
-            if not working_proxies:
-                new_proxies = get_proxies(50)
+            add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
+            if proxy in working_proxies:
+                working_proxies.remove(proxy)
+            
+            if len(working_proxies) < 5:
+                new_proxies = get_proxies(MAX_PROXIES)
                 if new_proxies:
-                    working_proxies.extend(get_working_proxies(new_proxies))
-                if not working_proxies:
-                    working_proxies.append(None)
+                    new_working = get_working_proxies(new_proxies)
+                    working_proxies.extend(new_working)
+            
             time.sleep(1)
             continue
         
         if success:
-            logger.info(f"✅ ENVIADO {numero} | ID: {text_id}")
             send_telegram_result(numero, True, text_id, None, intento_actual, max_intentos)
             
-            if proxy:
-                add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
-                if proxy in working_proxies:
-                    working_proxies.remove(proxy)
+            add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
+            if proxy in working_proxies:
+                working_proxies.remove(proxy)
             return True, text_id
         
         if error and any(p in error.lower() for p in ["only one", "limit", "quota"]):
             intentos_limite += 1
             intentos_reales += 1
             
-            logger.warning(f"❌ Límite {numero}: {error} ({intentos_limite}/{MAX_INTENTOS_LIMITE})")
-            
             mensaje = (
                 f"⚠️ <b>LÍMITE ALCANZADO</b>\n"
                 f"📱 Número: <code>+{config['pais']}{numero}</code>\n"
-                f"📊 Intento: {intentos_limite}/{MAX_INTENTOS_LIMITE}\n"
-                f"⏰ Esperando nuevo proxy..."
+                f"📊 Intento: {intentos_limite}/{MAX_INTENTOS_LIMITE}"
             )
             send_telegram_message(mensaje)
             
@@ -325,44 +476,38 @@ def process_number(numero, config, working_proxies, proxy_blacklist, numbers_bla
                 mensaje = (
                     f"🚫 <b>BLACKLIST POR LÍMITE</b>\n"
                     f"📱 Número: <code>+{config['pais']}{numero}</code>\n"
-                    f"⚠️ {MAX_INTENTOS_LIMITE} intentos de límite alcanzados\n"
-                    f"⏰ Bloqueado por 24h"
+                    f"⚠️ {MAX_INTENTOS_LIMITE} intentos alcanzados\n⏰ Bloqueado 24h"
                 )
                 send_telegram_message(mensaje)
                 add_blacklist(numero, numbers_blacklist, NUMBERS_BLACKLIST_FILE)
                 return False, "limite_blacklist"
             
-            if proxy:
-                add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
-                if proxy in working_proxies:
-                    working_proxies.remove(proxy)
+            add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
+            if proxy in working_proxies:
+                working_proxies.remove(proxy)
             
-            if not working_proxies:
-                new_proxies = get_proxies(50)
+            if len(working_proxies) < 5:
+                new_proxies = get_proxies(MAX_PROXIES)
                 if new_proxies:
-                    working_proxies.extend(get_working_proxies(new_proxies))
-                if not working_proxies:
-                    working_proxies.append(None)
+                    new_working = get_working_proxies(new_proxies)
+                    working_proxies.extend(new_working)
             
             if intentos_reales < max_intentos:
                 time.sleep(config['intervalo'] + random.uniform(0, 1))
             continue
         
-        logger.error(f"❌ Error {numero}: {error}")
         intentos_reales += 1
         send_telegram_result(numero, False, None, error, intento_actual, max_intentos)
+        
+        add_blacklist(proxy, proxy_blacklist, BLACKLIST_FILE)
+        if proxy in working_proxies:
+            working_proxies.remove(proxy)
         
         if intentos_reales < max_intentos:
             time.sleep(config['intervalo'] + random.uniform(0, 1))
     
-    mensaje = (
-        f"❌ <b>AGOTADO</b>\n"
-        f"📱 Número: <code>+{config['pais']}{numero}</code>\n"
-        f"⚠️ {max_intentos} intentos fallidos\n"
-        f"⏰ {datetime.now().strftime('%H:%M:%S')}"
-    )
+    mensaje = f"❌ <b>AGOTADO</b>\n📱 Número: <code>+{config['pais']}{numero}</code>\n⚠️ {max_intentos} intentos fallidos"
     send_telegram_message(mensaje)
-    
     return False, "agotado"
 
 def ejecutar_envio(numeros, config):
@@ -371,21 +516,28 @@ def ejecutar_envio(numeros, config):
         
         mensaje_inicio = (
             f"🚀 <b>INICIANDO ENVÍO MASIVO</b>\n"
-            f"📱 Total números: {len(numeros)}\n"
-            f"📝 Mensaje: {config['mensaje'][:100]}...\n"
-            f"📏 Longitud: {len(config['mensaje'])} caracteres\n"
-            f"🔄 Intentos por número: {config['intentos']}\n"
+            f"📱 Total: {len(numeros)}\n"
+            f"🔄 Intentos: {config['intentos']}\n"
             f"⏰ {datetime.now().strftime('%H:%M:%S')}"
         )
         send_telegram_message(mensaje_inicio)
         
         proxy_list = get_proxies(MAX_PROXIES)
-        if proxy_list:
-            working_proxies = get_working_proxies(proxy_list)
-            if not working_proxies:
-                working_proxies = [None]
-        else:
-            working_proxies = [None]
+        
+        if not proxy_list:
+            logger.error("❌ No se obtuvieron proxies")
+            send_telegram_message("❌ <b>ERROR CRÍTICO</b>\nNo se obtuvieron proxies")
+            return {"total": len(numeros), "enviados": 0, "fallidos": len(numeros), "blacklist": 0}
+        
+        working_proxies = get_working_proxies(proxy_list)
+        
+        if not working_proxies:
+            logger.error("❌ No hay proxies funcionales")
+            send_telegram_message("❌ <b>ERROR CRÍTICO</b>\nNo hay proxies funcionales")
+            return {"total": len(numeros), "enviados": 0, "fallidos": len(numeros), "blacklist": 0}
+        
+        logger.info(f"✅ {len(working_proxies)} proxies funcionales")
+        send_telegram_message(f"✅ <b>PROXIES LISTOS</b>\n{len(working_proxies)} proxies")
         
         proxy_blacklist = load_json(BLACKLIST_FILE)
         numbers_blacklist = load_json(NUMBERS_BLACKLIST_FILE)
@@ -395,15 +547,9 @@ def ejecutar_envio(numeros, config):
         for i, numero in enumerate(numeros, 1):
             logger.info(f"▶ [{i}/{stats['total']}] +{config['pais']} {numero}")
             
-            mensaje_progreso = (
-                f"🔄 <b>PROCESANDO</b> [{i}/{stats['total']}]\n"
-                f"📱 Número: <code>+{config['pais']}{numero}</code>"
-            )
-            send_telegram_message(mensaje_progreso)
-            
             success, result = process_number(
                 numero, config, working_proxies,
-                proxy_blacklist, numbers_blacklist, stats
+                proxy_blacklist, numbers_blacklist
             )
             
             if success:
@@ -417,14 +563,20 @@ def ejecutar_envio(numeros, config):
                 stats['fallidos'] += 1
             
             if i % 10 == 0:
-                resumen_parcial = (
+                resumen = (
                     f"📊 <b>PROGRESO</b> [{i}/{stats['total']}]\n"
                     f"✅ Enviados: {stats['enviados']}\n"
                     f"❌ Fallidos: {stats['fallidos']}\n"
-                    f"⏭️ Blacklist: {stats['blacklist']}"
+                    f"⏭️ Blacklist: {stats['blacklist']}\n"
+                    f"🔌 Proxies: {len(working_proxies)}"
                 )
-                send_telegram_message(resumen_parcial)
-                logger.info(f"📊 Progreso: {i}/{stats['total']} | ✅ {stats['enviados']}")
+                send_telegram_message(resumen)
+            
+            if len(working_proxies) < 3:
+                new_proxies = get_proxies(MAX_PROXIES)
+                if new_proxies:
+                    new_working = get_working_proxies(new_proxies)
+                    working_proxies.extend(new_working)
             
             if i < stats['total']:
                 time.sleep(config['intervalo'] * 0.5 + random.uniform(0, 2))
@@ -434,11 +586,12 @@ def ejecutar_envio(numeros, config):
             f"📱 Total: {stats['total']}\n"
             f"✅ Enviados: {stats['enviados']}\n"
             f"❌ Fallidos: {stats['fallidos']}\n"
-            f"⏭️ Blacklist: {stats['blacklist']}"
+            f"⏭️ Blacklist: {stats['blacklist']}\n"
+            f"🔌 Proxies: {len(working_proxies)}\n"
+            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
         )
         if stats['limite_blacklist'] > 0:
             resumen += f"\n🚫 Blacklist límite: {stats['limite_blacklist']}"
-        resumen += f"\n⏰ {datetime.now().strftime('%H:%M:%S')}"
         
         logger.info(resumen)
         send_telegram_message(resumen)
@@ -448,612 +601,319 @@ def ejecutar_envio(numeros, config):
         
         return stats
     except Exception as e:
-        logger.error(f"Error en ejecución: {e}")
-        send_telegram_message(f"❌ <b>ERROR CRÍTICO</b>\n{str(e)}")
+        logger.error(f"Error: {e}")
+        send_telegram_message(f"❌ <b>ERROR</b>\n{str(e)}")
         raise
 
-# ==================== HTML TEMPLATE ====================
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMS Pro - Envío Masivo</title>
+    <title>SMS Pro</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .header {
-            background: rgba(255,255,255,0.95);
-            border-radius: 20px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .header h1 {
-            color: #333;
-            font-size: 2.5em;
-            margin-bottom: 5px;
-        }
-        .header h1 span {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .header p {
-            color: #666;
-            font-size: 1.1em;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-        @media (max-width: 768px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        .card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 20px;
-            padding: 25px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            transition: transform 0.3s;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-        }
-        .card h2 {
-            color: #333;
-            font-size: 1.5em;
-            margin-bottom: 20px;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 10px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            color: #555;
-            font-weight: 600;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-        }
-        .form-group input, .form-group textarea, .form-group select {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 1em;
-            transition: border 0.3s;
-            font-family: inherit;
-        }
-        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .form-group textarea {
-            min-height: 80px;
-            resize: vertical;
-        }
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        .btn {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            width: 100%;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
-        }
-        .btn-danger {
-            background: #ff6b6b;
-            color: white;
-        }
-        .btn-danger:hover {
-            background: #ee5a24;
-            transform: translateY(-2px);
-        }
-        .btn-success {
-            background: #00b894;
-            color: white;
-        }
-        .btn-success:hover {
-            background: #00a884;
-            transform: translateY(-2px);
-        }
-        .btn-warning {
-            background: #fdcb6e;
-            color: #333;
-        }
-        .btn-warning:hover {
-            background: #fdcb6e;
-            transform: translateY(-2px);
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-top: 20px;
-        }
-        .stat-item {
-            background: rgba(255,255,255,0.95);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        }
-        .stat-item .number {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        .stat-item .label {
-            color: #666;
-            font-size: 0.9em;
-            margin-top: 5px;
-        }
-        .stat-item.success .number { color: #00b894; }
-        .stat-item.danger .number { color: #ff6b6b; }
-        .stat-item.warning .number { color: #fdcb6e; }
-        .badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.75em;
-            font-weight: 600;
-        }
-        .badge-success { background: #00b894; color: white; }
-        .badge-danger { background: #ff6b6b; color: white; }
-        .badge-warning { background: #fdcb6e; color: #333; }
-        .badge-info { background: #4fc3f7; color: #333; }
-        .mode-selector {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .mode-btn {
-            flex: 1;
-            padding: 10px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            background: white;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-align: center;
-            font-weight: 600;
-        }
-        .mode-btn.active {
-            border-color: #667eea;
-            background: #f0f4ff;
-            color: #667eea;
-        }
-        .mode-btn:hover {
-            border-color: #667eea;
-        }
-        .hidden {
-            display: none;
-        }
-        .log-container {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            border-radius: 10px;
-            padding: 15px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: 'Consolas', monospace;
-            font-size: 0.9em;
-            margin-top: 10px;
-        }
-        .log-entry {
-            padding: 2px 0;
-            border-bottom: 1px solid #2d2d2d;
-        }
-        .log-entry .time {
-            color: #858585;
-            margin-right: 10px;
-        }
-        .log-entry .level-info { color: #4fc3f7; }
-        .log-entry .level-success { color: #81c784; }
-        .log-entry .level-warning { color: #ffb74d; }
-        .log-entry .level-error { color: #ff6b6b; }
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height:100vh; padding:20px; }
+        .container { max-width:1200px; margin:0 auto; }
+        .header { background:rgba(255,255,255,0.95); border-radius:20px; padding:30px; margin-bottom:30px; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.1); }
+        .header h1 { color:#333; font-size:2.5em; }
+        .header h1 span { background:linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .grid { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-bottom:30px; }
+        @media (max-width:768px) { .grid { grid-template-columns:1fr; } }
+        .card { background:rgba(255,255,255,0.95); border-radius:20px; padding:25px; box-shadow:0 10px 40px rgba(0,0,0,0.1); }
+        .card h2 { color:#333; margin-bottom:20px; border-bottom:3px solid #667eea; padding-bottom:10px; }
+        .form-group { margin-bottom:15px; }
+        .form-group label { display:block; color:#555; font-weight:600; margin-bottom:5px; font-size:0.9em; }
+        .form-group input, .form-group textarea { width:100%; padding:12px 15px; border:2px solid #e1e1e1; border-radius:10px; font-size:1em; font-family:inherit; }
+        .form-group input:focus, .form-group textarea:focus { outline:none; border-color:#667eea; }
+        .form-group textarea { min-height:80px; resize:vertical; }
+        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+        .btn { padding:12px 30px; border:none; border-radius:10px; font-size:1em; font-weight:600; cursor:pointer; width:100%; }
+        .btn-primary { background:linear-gradient(135deg, #667eea, #764ba2); color:white; }
+        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 5px 20px rgba(102,126,234,0.4); }
+        .btn-success { background:#00b894; color:white; }
+        .btn-success:hover { transform:translateY(-2px); }
+        .btn-warning { background:#fdcb6e; color:#333; }
+        .btn-warning:hover { transform:translateY(-2px); }
+        .btn-danger { background:#ff6b6b; color:white; }
+        .btn-danger:hover { transform:translateY(-2px); }
+        .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin-top:20px; }
+        .stat-item { background:rgba(255,255,255,0.95); border-radius:15px; padding:20px; text-align:center; box-shadow:0 5px 20px rgba(0,0,0,0.1); }
+        .stat-item .number { font-size:2em; font-weight:bold; color:#667eea; }
+        .stat-item .label { color:#666; font-size:0.9em; margin-top:5px; }
+        .stat-item.success .number { color:#00b894; }
+        .stat-item.danger .number { color:#ff6b6b; }
+        .stat-item.warning .number { color:#fdcb6e; }
+        .mode-selector { display:flex; gap:10px; margin-bottom:15px; }
+        .mode-btn { flex:1; padding:10px; border:2px solid #e1e1e1; border-radius:10px; background:white; cursor:pointer; text-align:center; font-weight:600; }
+        .mode-btn.active { border-color:#667eea; background:#f0f4ff; color:#667eea; }
+        .mode-btn:hover { border-color:#667eea; }
+        .hidden { display:none; }
+        .log-container { background:#1e1e1e; color:#d4d4d4; border-radius:10px; padding:15px; max-height:300px; overflow-y:auto; font-family:monospace; font-size:0.9em; margin-top:10px; }
+        .log-entry { padding:2px 0; border-bottom:1px solid #2d2d2d; }
+        .log-entry .time { color:#858585; margin-right:10px; }
+        .log-entry .level-info { color:#4fc3f7; }
+        .log-entry .level-success { color:#81c784; }
+        .log-entry .level-warning { color:#ffb74d; }
+        .log-entry .level-error { color:#ff6b6b; }
+        .loading { display:none; text-align:center; padding:20px; }
+        .spinner { border:4px solid #f3f3f3; border-top:4px solid #667eea; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:0 auto; }
+        @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+        .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.75em; font-weight:600; }
+        .badge-success { background:#00b894; color:white; }
+        .badge-warning { background:#fdcb6e; color:#333; }
+        .badge-info { background:#4fc3f7; color:#333; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>📱 <span>SMS Pro</span></h1>
-            <p>Envío masivo de SMS con Textbelt y Proxies</p>
-            <div style="margin-top: 10px;">
-                <span class="badge badge-success">● Activo</span>
-                <span class="badge badge-warning">🔑 {{ api_keys_count }} claves</span>
-                <span class="badge badge-info">🌐 {{ proxies_count }} proxies</span>
-            </div>
+<div class="container">
+    <div class="header">
+        <h1>📱 <span>SMS Pro</span></h1>
+        <p>Envío masivo de SMS con Textbelt y Proxies</p>
+        <div style="margin-top:10px;">
+            <span class="badge badge-success">● Activo</span>
+            <span class="badge badge-warning">🔑 {{ api_keys_count }} claves</span>
+            <span class="badge badge-info">🌐 {{ proxies_count }} proxies</span>
         </div>
+    </div>
 
-        <!-- Stats -->
-        <div class="stats" id="stats">
-            <div class="stat-item">
-                <div class="number" id="total">0</div>
-                <div class="label">Total Números</div>
-            </div>
-            <div class="stat-item success">
-                <div class="number" id="enviados">0</div>
-                <div class="label">✅ Enviados</div>
-            </div>
-            <div class="stat-item danger">
-                <div class="number" id="fallidos">0</div>
-                <div class="label">❌ Fallidos</div>
-            </div>
-            <div class="stat-item warning">
-                <div class="number" id="blacklist">0</div>
-                <div class="label">⏭️ Blacklist</div>
-            </div>
-        </div>
+    <div class="stats" id="stats">
+        <div class="stat-item"><div class="number" id="total">0</div><div class="label">Total</div></div>
+        <div class="stat-item success"><div class="number" id="enviados">0</div><div class="label">✅ Enviados</div></div>
+        <div class="stat-item danger"><div class="number" id="fallidos">0</div><div class="label">❌ Fallidos</div></div>
+        <div class="stat-item warning"><div class="number" id="blacklist">0</div><div class="label">⏭️ Blacklist</div></div>
+    </div>
 
-        <!-- Main Grid -->
-        <div class="grid">
-            <!-- Panel de Envío -->
-            <div class="card">
-                <h2>✉️ Enviar SMS</h2>
-                
-                <div class="mode-selector">
-                    <button class="mode-btn active" onclick="switchMode('lista')" id="mode-lista">📋 Lista</button>
-                    <button class="mode-btn" onclick="switchMode('rango')" id="mode-rango">📊 Rango</button>
-                </div>
-
-                <div id="modo-lista">
-                    <div class="form-group">
-                        <label>📱 Números (uno por línea)</label>
-                        <textarea id="numeros-lista" rows="5" placeholder="59642359&#10;55721087&#10;59042427">59642359&#10;55721087&#10;59042427</textarea>
-                    </div>
-                </div>
-
-                <div id="modo-rango" class="hidden">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>📌 Número de inicio</label>
-                            <input type="text" id="rango-inicio" value="59545678" placeholder="ej: 59545678">
-                        </div>
-                        <div class="form-group">
-                            <label>📌 Número de fin</label>
-                            <input type="text" id="rango-fin" value="59545700" placeholder="ej: 59999999">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>📊 Total a generar</label>
-                        <input type="text" id="rango-total" readonly style="background: #f5f5f5;">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>📝 Mensaje</label>
-                    <textarea id="mensaje" rows="2">{{ mensaje }}</textarea>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>🌍 País</label>
-                        <input type="text" id="pais" value="{{ pais }}">
-                    </div>
-                    <div class="form-group">
-                        <label>🔄 Intentos</label>
-                        <input type="number" id="intentos" value="{{ intentos }}" min="1" max="10">
-                    </div>
-                </div>
-
-                <button class="btn btn-primary" onclick="enviar()">🚀 Enviar SMS</button>
-                <div class="loading" id="loading">
-                    <div class="spinner"></div>
-                    <p style="margin-top: 10px; color: #666;">Enviando mensajes...</p>
-                </div>
-            </div>
-
-            <!-- Panel de Control -->
-            <div class="card">
-                <h2>⚙️ Control</h2>
-                
-                <div class="form-group">
-                    <label>🔑 Claves API (separadas por coma)</label>
-                    <input type="text" id="api-keys" value="{{ api_keys|join(', ') }}">
-                </div>
-
-                <div class="form-row">
-                    <button class="btn btn-success" onclick="actualizarClaves()">💾 Guardar Claves</button>
-                    <button class="btn btn-warning" onclick="recargarProxies()">🌐 Recargar Proxies</button>
-                </div>
-
-                <div style="margin-top: 15px;">
-                    <button class="btn btn-danger" onclick="limpiarBlacklist()">🗑️ Limpiar Blacklist</button>
-                </div>
-
-                <div style="margin-top: 20px;">
-                    <h3 style="color: #555; font-size: 1em; margin-bottom: 10px;">📊 Estado</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div style="background: #f5f5f5; padding: 10px; border-radius: 10px;">
-                            <small style="color: #888;">Proxies activos</small>
-                            <div style="font-size: 1.5em; font-weight: bold; color: #667eea;" id="proxies-activos">{{ proxies_count }}</div>
-                        </div>
-                        <div style="background: #f5f5f5; padding: 10px; border-radius: 10px;">
-                            <small style="color: #888;">En blacklist</small>
-                            <div style="font-size: 1.5em; font-weight: bold; color: #ff6b6b;" id="blacklist-count">{{ blacklist_count }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Logs -->
+    <div class="grid">
         <div class="card">
-            <h2>📋 Logs en tiempo real</h2>
-            <div class="log-container" id="logs">
-                <div class="log-entry">
-                    <span class="time">[Sistema]</span>
-                    <span class="level-info">Servidor iniciado correctamente</span>
+            <h2>✉️ Enviar SMS</h2>
+            <div class="mode-selector">
+                <button class="mode-btn active" onclick="switchMode('lista')" id="mode-lista">📋 Lista</button>
+                <button class="mode-btn" onclick="switchMode('rango')" id="mode-rango">📊 Rango</button>
+            </div>
+            <div id="modo-lista">
+                <div class="form-group">
+                    <label>📱 Números (uno por línea)</label>
+                    <textarea id="numeros-lista" rows="5" placeholder="59642359&#10;55721087">59642359&#10;55721087</textarea>
+                </div>
+            </div>
+            <div id="modo-rango" class="hidden">
+                <div class="form-row">
+                    <div class="form-group"><label>Inicio</label><input type="text" id="rango-inicio" value="59545678"></div>
+                    <div class="form-group"><label>Fin</label><input type="text" id="rango-fin" value="59545700"></div>
+                </div>
+                <div class="form-group"><label>Total</label><input type="text" id="rango-total" readonly style="background:#f5f5f5;"></div>
+            </div>
+            <div class="form-group"><label>📝 Mensaje</label><textarea id="mensaje" rows="2">{{ mensaje }}</textarea></div>
+            <div class="form-row">
+                <div class="form-group"><label>🌍 País</label><input type="text" id="pais" value="{{ pais }}"></div>
+                <div class="form-group"><label>🔄 Intentos</label><input type="number" id="intentos" value="{{ intentos }}" min="1" max="10"></div>
+            </div>
+            <button class="btn btn-primary" onclick="enviar()">🚀 Enviar SMS</button>
+            <div class="loading" id="loading"><div class="spinner"></div><p style="margin-top:10px;color:#666;">Enviando...</p></div>
+        </div>
+
+        <div class="card">
+            <h2>⚙️ Control</h2>
+            <div class="form-group"><label>🔑 Claves API</label><input type="text" id="api-keys" value="{{ api_keys|join(', ') }}"></div>
+            <div class="form-row">
+                <button class="btn btn-success" onclick="actualizarClaves()">💾 Guardar</button>
+                <button class="btn btn-warning" onclick="recargarProxies()">🌐 Recargar</button>
+            </div>
+            <div style="margin-top:15px;"><button class="btn btn-danger" onclick="limpiarBlacklist()">🗑️ Limpiar Blacklist</button></div>
+            <div style="margin-top:20px;">
+                <h3 style="color:#555;font-size:1em;margin-bottom:10px;">📊 Estado</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div style="background:#f5f5f5;padding:10px;border-radius:10px;">
+                        <small style="color:#888;">Proxies</small>
+                        <div style="font-size:1.5em;font-weight:bold;color:#667eea;" id="proxies-activos">{{ proxies_count }}</div>
+                    </div>
+                    <div style="background:#f5f5f5;padding:10px;border-radius:10px;">
+                        <small style="color:#888;">Blacklist</small>
+                        <div style="font-size:1.5em;font-weight:bold;color:#ff6b6b;" id="blacklist-count">{{ blacklist_count }}</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        let modoActual = 'lista';
-        let enviando = false;
+    <div class="card">
+        <h2>📋 Logs</h2>
+        <div class="log-container" id="logs">
+            <div class="log-entry"><span class="time">[Sistema]</span><span class="level-info">Servidor iniciado</span></div>
+        </div>
+    </div>
+</div>
 
-        function switchMode(mode) {
-            modoActual = mode;
-            document.getElementById('modo-lista').classList.toggle('hidden', mode !== 'lista');
-            document.getElementById('modo-rango').classList.toggle('hidden', mode !== 'rango');
-            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`mode-${mode}`).classList.add('active');
-            if (mode === 'rango') calcularRango();
+<script>
+let modoActual = 'lista';
+let enviando = false;
+
+function switchMode(mode) {
+    modoActual = mode;
+    document.getElementById('modo-lista').classList.toggle('hidden', mode !== 'lista');
+    document.getElementById('modo-rango').classList.toggle('hidden', mode !== 'rango');
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('mode-' + mode).classList.add('active');
+    if (mode === 'rango') calcularRango();
+}
+
+function calcularRango() {
+    const inicio = document.getElementById('rango-inicio').value;
+    const fin = document.getElementById('rango-fin').value;
+    if (inicio && fin) {
+        try {
+            const total = parseInt(fin) - parseInt(inicio) + 1;
+            document.getElementById('rango-total').value = total > 0 ? total + ' números' : 'Rango inválido';
+        } catch { document.getElementById('rango-total').value = 'Error'; }
+    }
+}
+
+document.getElementById('rango-inicio').addEventListener('input', calcularRango);
+document.getElementById('rango-fin').addEventListener('input', calcularRango);
+
+function enviar() {
+    if (enviando) { alert('Ya hay un envío en progreso'); return; }
+    let numeros = [];
+    if (modoActual === 'lista') {
+        numeros = document.getElementById('numeros-lista').value.split('\n').map(n => n.trim()).filter(n => n);
+        if (numeros.length === 0) { alert('Ingresa al menos un número'); return; }
+    } else {
+        const inicio = document.getElementById('rango-inicio').value.trim();
+        const fin = document.getElementById('rango-fin').value.trim();
+        if (!inicio || !fin) { alert('Ingresa inicio y fin'); return; }
+        numeros = ['RANGO:' + inicio + ':' + fin];
+    }
+
+    const data = {
+        modo: modoActual,
+        numeros: numeros,
+        pais: document.getElementById('pais').value || '53',
+        mensaje: document.getElementById('mensaje').value,
+        intentos: parseInt(document.getElementById('intentos').value) || 3
+    };
+
+    enviando = true;
+    document.getElementById('loading').style.display = 'block';
+    document.querySelector('.btn-primary').disabled = true;
+
+    fetch('/api/enviar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'aceptado') {
+            agregarLog('success', '✅ ' + data.mensaje);
+            document.getElementById('total').textContent = data.numeros || '...';
+        } else {
+            agregarLog('error', '❌ Error: ' + (data.error || 'Desconocido'));
         }
+    })
+    .catch(e => agregarLog('error', '❌ Error: ' + e.message))
+    .finally(() => {
+        enviando = false;
+        document.getElementById('loading').style.display = 'none';
+        document.querySelector('.btn-primary').disabled = false;
+        actualizarStats();
+    });
+}
 
-        function calcularRango() {
-            const inicio = document.getElementById('rango-inicio').value;
-            const fin = document.getElementById('rango-fin').value;
-            if (inicio && fin) {
-                try {
-                    const total = parseInt(fin) - parseInt(inicio) + 1;
-                    document.getElementById('rango-total').value = total > 0 ? `${total} números` : 'Rango inválido';
-                } catch {
-                    document.getElementById('rango-total').value = 'Error';
-                }
-            }
+function actualizarClaves() {
+    const keys = document.getElementById('api-keys').value.split(',').map(k => k.trim()).filter(k => k);
+    fetch('/api/claves', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({claves: keys})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') agregarLog('success', '✅ ' + data.mensaje);
+        else agregarLog('error', '❌ Error: ' + data.error);
+    })
+    .catch(e => agregarLog('error', '❌ Error: ' + e.message));
+}
+
+function recargarProxies() {
+    agregarLog('info', '🔄 Recargando proxies...');
+    fetch('/api/proxies/recargar', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            agregarLog('success', '✅ ' + data.mensaje);
+            document.getElementById('proxies-activos').textContent = data.proxies || '0';
+        } else agregarLog('error', '❌ Error: ' + data.error);
+    })
+    .catch(e => agregarLog('error', '❌ Error: ' + e.message));
+}
+
+function limpiarBlacklist() {
+    if (!confirm('¿Eliminar toda la blacklist?')) return;
+    fetch('/api/blacklist/limpiar', { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            agregarLog('success', '✅ ' + data.mensaje);
+            document.getElementById('blacklist-count').textContent = '0';
+        } else agregarLog('error', '❌ Error: ' + data.error);
+    })
+    .catch(e => agregarLog('error', '❌ Error: ' + e.message));
+}
+
+function actualizarStats() {
+    fetch('/api/stats')
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            document.getElementById('total').textContent = data.total || '0';
+            document.getElementById('enviados').textContent = data.enviados || '0';
+            document.getElementById('fallidos').textContent = data.fallidos || '0';
+            document.getElementById('blacklist').textContent = data.blacklist || '0';
         }
+    })
+    .catch(() => {});
+}
 
-        document.getElementById('rango-inicio').addEventListener('input', calcularRango);
-        document.getElementById('rango-fin').addEventListener('input', calcularRango);
+function agregarLog(tipo, mensaje) {
+    const container = document.getElementById('logs');
+    const time = new Date().toLocaleTimeString();
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = '<span class="time">[' + time + ']</span><span class="level-' + tipo + '">' + mensaje + '</span>';
+    container.appendChild(entry);
+    container.scrollTop = container.scrollHeight;
+    while (container.children.length > 100) container.removeChild(container.firstChild);
+}
 
-        function enviar() {
-            if (enviando) {
-                alert('Ya hay un envío en progreso');
-                return;
-            }
-
-            let numeros = [];
-            let modo = modoActual;
-
-            if (modo === 'lista') {
-                const textarea = document.getElementById('numeros-lista');
-                numeros = textarea.value.split('\\n').map(n => n.trim()).filter(n => n);
-                if (numeros.length === 0) {
-                    alert('Ingresa al menos un número');
-                    return;
-                }
-            } else {
-                const inicio = document.getElementById('rango-inicio').value.trim();
-                const fin = document.getElementById('rango-fin').value.trim();
-                if (!inicio || !fin) {
-                    alert('Ingresa inicio y fin del rango');
-                    return;
-                }
-                numeros = ['RANGO:' + inicio + ':' + fin];
-            }
-
-            const data = {
-                modo: modo,
-                numeros: numeros,
-                pais: document.getElementById('pais').value || '53',
-                mensaje: document.getElementById('mensaje').value,
-                intentos: parseInt(document.getElementById('intentos').value) || 3
-            };
-
-            enviando = true;
-            document.getElementById('loading').style.display = 'block';
-            document.querySelector('.btn-primary').disabled = true;
-
-            fetch('/api/enviar', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'aceptado') {
-                    agregarLog('success', `✅ ${data.mensaje}`);
-                    document.getElementById('total').textContent = data.numeros || '...';
-                } else {
-                    agregarLog('error', `❌ Error: ${data.error || 'Desconocido'}`);
-                }
-            })
-            .catch(error => {
-                agregarLog('error', `❌ Error: ${error.message}`);
-            })
-            .finally(() => {
-                enviando = false;
-                document.getElementById('loading').style.display = 'none';
-                document.querySelector('.btn-primary').disabled = false;
-                actualizarStats();
+function pollLogs() {
+    fetch('/api/logs')
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok' && data.logs) {
+            data.logs.forEach(log => {
+                const tipo = log.includes('✅') ? 'success' : log.includes('❌') ? 'error' : log.includes('⚠️') ? 'warning' : 'info';
+                agregarLog(tipo, log);
             });
         }
+    })
+    .catch(() => {});
+}
 
-        function actualizarClaves() {
-            const keys = document.getElementById('api-keys').value.split(',').map(k => k.trim()).filter(k => k);
-            fetch('/api/claves', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({claves: keys})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    agregarLog('success', `✅ ${data.mensaje}`);
-                } else {
-                    agregarLog('error', `❌ Error: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                agregarLog('error', `❌ Error: ${error.message}`);
-            });
-        }
+setInterval(actualizarStats, 5000);
+setInterval(pollLogs, 3000);
 
-        function recargarProxies() {
-            agregarLog('info', '🔄 Recargando proxies...');
-            fetch('/api/proxies/recargar', {
-                method: 'POST'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    agregarLog('success', `✅ ${data.mensaje}`);
-                    document.getElementById('proxies-activos').textContent = data.proxies || '0';
-                } else {
-                    agregarLog('error', `❌ Error: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                agregarLog('error', `❌ Error: ${error.message}`);
-            });
-        }
-
-        function limpiarBlacklist() {
-            if (!confirm('¿Eliminar toda la blacklist?')) return;
-            
-            fetch('/api/blacklist/limpiar', {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    agregarLog('success', `✅ ${data.mensaje}`);
-                    document.getElementById('blacklist-count').textContent = '0';
-                } else {
-                    agregarLog('error', `❌ Error: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                agregarLog('error', `❌ Error: ${error.message}`);
-            });
-        }
-
-        function actualizarStats() {
-            fetch('/api/stats')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    document.getElementById('total').textContent = data.total || '0';
-                    document.getElementById('enviados').textContent = data.enviados || '0';
-                    document.getElementById('fallidos').textContent = data.fallidos || '0';
-                    document.getElementById('blacklist').textContent = data.blacklist || '0';
-                }
-            })
-            .catch(() => {});
-        }
-
-        function agregarLog(tipo, mensaje) {
-            const logContainer = document.getElementById('logs');
-            const time = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            const levelClass = `level-${tipo}`;
-            entry.innerHTML = `<span class="time">[${time}]</span><span class="${levelClass}">${mensaje}</span>`;
-            logContainer.appendChild(entry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-            
-            while (logContainer.children.length > 100) {
-                logContainer.removeChild(logContainer.firstChild);
-            }
-        }
-
-        function pollLogs() {
-            fetch('/api/logs')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok' && data.logs) {
-                    data.logs.forEach(log => {
-                        const tipo = log.includes('✅') ? 'success' : 
-                                   log.includes('❌') || log.includes('Error') ? 'error' :
-                                   log.includes('⚠️') ? 'warning' : 'info';
-                        agregarLog(tipo, log);
-                    });
-                }
-            })
-            .catch(() => {});
-        }
-
-        setInterval(actualizarStats, 5000);
-        setInterval(pollLogs, 3000);
-
-        document.addEventListener('DOMContentLoaded', function() {
-            actualizarStats();
-            calcularRango();
-            agregarLog('info', '🚀 Panel de control iniciado');
-        });
-    </script>
+document.addEventListener('DOMContentLoaded', function() {
+    actualizarStats();
+    calcularRango();
+    agregarLog('info', '🚀 Panel iniciado');
+});
+</script>
 </body>
 </html>
 '''
 
-# ==================== ENDPOINTS API ====================
 @app.route('/')
 def index():
     proxy_blacklist = load_json(BLACKLIST_FILE)
@@ -1110,12 +970,12 @@ def api_enviar():
         
         return jsonify({
             "status": "aceptado",
-            "mensaje": f"Enviando a {len(numeros)} números en segundo plano",
+            "mensaje": f"Enviando a {len(numeros)} números",
             "numeros": len(numeros)
         }), 202
         
     except Exception as e:
-        logger.error(f"Error en endpoint: {e}")
+        logger.error(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/claves', methods=['POST'])
@@ -1123,20 +983,16 @@ def api_claves():
     try:
         data = request.get_json()
         nuevas_claves = data.get('claves', [])
-        
         if not nuevas_claves:
             return jsonify({"error": "No se enviaron claves"}), 400
         
         global API_KEYS
         API_KEYS = nuevas_claves
-        
         config = load_json(CONFIG_FILE, {})
         config['api_keys'] = API_KEYS
         save_json(CONFIG_FILE, config)
         
-        logger.info(f"🔑 Claves API actualizadas: {len(API_KEYS)}")
         return jsonify({"status": "ok", "mensaje": f"{len(API_KEYS)} claves guardadas"})
-        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1145,11 +1001,7 @@ def api_recargar_proxies():
     try:
         proxies = get_proxies(MAX_PROXIES)
         working = get_working_proxies(proxies)
-        count = len(working)
-        
-        logger.info(f"🌐 Proxies recargados: {count} funcionales")
-        return jsonify({"status": "ok", "mensaje": f"{count} proxies funcionales", "proxies": count})
-        
+        return jsonify({"status": "ok", "mensaje": f"{len(working)} proxies", "proxies": len(working)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1158,10 +1010,7 @@ def api_limpiar_blacklist():
     try:
         save_json(BLACKLIST_FILE, {})
         save_json(NUMBERS_BLACKLIST_FILE, {})
-        logger.info("🗑️ Blacklist limpiada")
-        send_telegram_message("🗑️ <b>Blacklist limpiada</b>")
-        return jsonify({"status": "ok", "mensaje": "Blacklist limpiada exitosamente"})
-        
+        return jsonify({"status": "ok", "mensaje": "Blacklist limpiada"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1189,4 +1038,3 @@ def api_logs():
     except:
         return jsonify({"status": "ok", "logs": []})
 
- 
