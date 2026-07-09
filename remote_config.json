@@ -1,5 +1,5 @@
 {
-  "version_required": "9",
+  "version_required": "1",
   "online_mode_enabled": true,
   "maintenance_mode": false,
   "maintenance_message": "Servidor en mantenimiento. Solo podrás ver listas y estadísticas.",
